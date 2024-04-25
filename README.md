@@ -1,6 +1,6 @@
 # <image src="https://wiki.haskell.org/wikistatic/haskellwiki_logo.png?e89e3" width=38> db-migration
 ![Version](https://img.shields.io/badge/version-v0.0.1-blue)
-[![Haskell CI](https://github.com/mycodedstuff/db-migration/actions/workflows/haskell.yaml/badge.svg)](https://github.com/mycodedstuff/db-migration/actions/workflows/haskell.yaml)
+[![Haskell CI](https://github.com/mycodedstuff/db-migration/actions/workflows/haskell.yml/badge.svg)](https://github.com/mycodedstuff/db-migration/actions/workflows/haskell.yml)
 ![GHC Version](https://img.shields.io/badge/GHC-v8.10.7-brightgreen)
 ![Last Commit](https://img.shields.io/github/last-commit/mycodedstuff/db-migration/main)
 ### A Haskell library to generate DDL queries by analyzing diff between Haskell and Database schema based on [beam](https://github.com/mycodedstuff/beam)

@@ -29,7 +29,7 @@ jobs:
           stack config set system-ghc --global true
           stack config set install-ghc --global false
       - name: Cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         env:
           cache-name: cache-stack
         with:

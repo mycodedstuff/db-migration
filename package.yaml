@@ -1,0 +1,54 @@
+name: db-migration
+
+default-extensions:
+  - DerivingStrategies
+  - DeriveGeneric
+  - DeriveAnyClass
+  - OverloadedStrings
+  - TypeFamilies
+  - TypeApplications
+  - BlockArguments
+  - ScopedTypeVariables
+  - DuplicateRecordFields
+  - RecordWildCards
+  - LambdaCase
+  - NamedFieldPuns
+  - DataKinds
+  - MultiParamTypeClasses
+  - FlexibleContexts
+
+ghc-options:
+  - -O2
+
+library:
+  source-dirs: src
+  dependencies:
+    - aeson
+    - containers
+    - base
+    - text
+    - bytestring
+    - unordered-containers
+    - integer-gmp
+    - beam-core
+    - beam-postgres
+    - beam-migrate
+    - ghc-prim
+    - postgresql-simple
+    - vector
+
+executables:
+  generate-dll:
+    source-dirs: examples
+    main: GenerateDDL
+    dependencies:
+      - aeson
+      - base
+      - bytestring
+      - text
+      - time
+      - db-migration
+      - beam-core
+      - beam-migrate
+      - beam-postgres
+      - postgresql-simple

@@ -1,0 +1,14 @@
+resolver:
+  url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/18/28.yaml
+
+packages:
+  - .
+
+extra-deps:
+  - github: mycodedstuff/beam
+    commit: 7ae8a01e4e416b31412d4c6f4a6abbaa473ce961
+    subdirs:
+      - beam-core
+      - beam-migrate
+      - beam-postgres
+      - beam-sqlite

@@ -1,0 +1,92 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.36.0.
+--
+-- see: https://github.com/sol/hpack
+
+name:           db-migration
+version:        0.0.0
+build-type:     Simple
+
+library
+  exposed-modules:
+      Database.Migration
+      Database.Migration.Backend.Postgres
+      Database.Migration.Types
+      Database.Migration.Utils.Beam
+      Database.Migration.Utils.Common
+      Database.Migration.Utils.Parser
+  other-modules:
+      Paths_db_migration
+  hs-source-dirs:
+      src
+  default-extensions:
+      DerivingStrategies
+      DeriveGeneric
+      DeriveAnyClass
+      OverloadedStrings
+      TypeFamilies
+      TypeApplications
+      BlockArguments
+      ScopedTypeVariables
+      DuplicateRecordFields
+      RecordWildCards
+      LambdaCase
+      NamedFieldPuns
+      DataKinds
+      MultiParamTypeClasses
+      FlexibleContexts
+  ghc-options: -O2
+  build-depends:
+      aeson
+    , base
+    , beam-core
+    , beam-migrate
+    , beam-postgres
+    , bytestring
+    , containers
+    , ghc-prim
+    , integer-gmp
+    , postgresql-simple
+    , text
+    , unordered-containers
+    , vector
+  default-language: Haskell2010
+
+executable generate-dll
+  main-is: GenerateDDL.hs
+  other-modules:
+      Schema.Configuration
+      Schema.Issue
+      Paths_db_migration
+  hs-source-dirs:
+      examples
+  default-extensions:
+      DerivingStrategies
+      DeriveGeneric
+      DeriveAnyClass
+      OverloadedStrings
+      TypeFamilies
+      TypeApplications
+      BlockArguments
+      ScopedTypeVariables
+      DuplicateRecordFields
+      RecordWildCards
+      LambdaCase
+      NamedFieldPuns
+      DataKinds
+      MultiParamTypeClasses
+      FlexibleContexts
+  ghc-options: -O2 -main-is GenerateDDL
+  build-depends:
+      aeson
+    , base
+    , beam-core
+    , beam-migrate
+    , beam-postgres
+    , bytestring
+    , db-migration
+    , postgresql-simple
+    , text
+    , time
+  default-language: Haskell2010

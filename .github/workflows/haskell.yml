@@ -1,0 +1,39 @@
+name: Haskell CI
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        ghc: ['8.10.7']
+        os: [ubuntu-latest]
+    name: GHC ${{ matrix.ghc-version }} on ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Haskell
+        uses: haskell-actions/setup@v2
+        with:
+          ghc-version: ${{ matrix.ghc }}
+          enable-stack: true
+          stack-version: 'latest'
+      - name: Cache
+        uses: actions/cache@v3
+        env:
+          cache-name: cache-stack
+        with:
+          path: ~/.stack
+          key: ${{ matrix.os }}-${{ matrix.ghc }}-build-${{ env.cache-name }}-${{ hashFiles('**/stack.yaml') }}-${{ hashFiles('**/stack.yaml.lock') }}
+          restore-keys: |
+            ${{ matrix.os }}-${{ matrix.ghc }}-build-${{ env.cache-name }}-
+      - name: Build dependencies
+        run: stack build --only-dependencies
+      - name: Build
+        run: stack build

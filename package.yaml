@@ -1,4 +1,7 @@
 name: db-migration
+version: 0.0.1
+author: Aman Singh
+
 
 default-extensions:
   - DerivingStrategies

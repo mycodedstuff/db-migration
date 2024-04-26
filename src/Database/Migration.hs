@@ -29,11 +29,6 @@ schemaDiff ::
   -> BM.CheckedDatabaseSettings BP.Postgres db
   -> IO (Either String DBDiff)
 schemaDiff conn schema checkedDB = do
-  -- putStrLn "Haskell checks"
-  -- print $ collectChecks checkedDB
-  -- putStrLn "Database checks"
-  print =<< BP.getDbConstraintsForSchemas Nothing conn
-  -- print =<< BP.runBeamPostgres conn (BMB.backendGetDbConstraints $ BP.migrationBackend {BMB.backendGetDbConstraints = B.liftIO (BP.getDbConstraintsForSchemas ((: []) . unpack <$> schema) conn)})
   diff <-
     try @SomeException
       $ BP.runBeamPostgres conn

@@ -17,6 +17,8 @@ jobs:
         os: [ubuntu-latest, macOS-latest]
     name: GHC ${{ matrix.ghc }} on ${{ matrix.os }}
     steps:
+      - if: matrix.os == 'macOS-latest'
+        run: brew install llvm@12
       - uses: actions/checkout@v4
       - name: Setup Haskell
         uses: haskell-actions/setup@v2
@@ -34,9 +36,7 @@ jobs:
           cache-name: cache-stack
         with:
           path: ~/.stack
-          key: ${{ matrix.os }}-${{ matrix.ghc }}-build-${{ env.cache-name }}-${{ hashFiles('**/stack.yaml') }}-${{ hashFiles('**/stack.yaml.lock') }}
-          restore-keys: |
-            ${{ matrix.os }}-${{ matrix.ghc }}-build-${{ env.cache-name }}-
+          key: ${{ matrix.os }}-ghc-${{ matrix.ghc }}-build-${{ env.cache-name }}-${{ hashFiles('**/stack.yaml') }}-${{ hashFiles('**/stack.yaml.lock') }}-${{ hashFiles('**/package.yaml') }}
       - name: Build dependencies
         run: stack build --only-dependencies
       - name: Build

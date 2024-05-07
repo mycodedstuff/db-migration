@@ -26,7 +26,6 @@ jobs:
         uses: ikalnytskyi/action-setup-postgres@v6
         id: postgres
         with:
-          password: ""
           database: testdb
 
       - uses: actions/checkout@v4

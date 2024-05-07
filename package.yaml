@@ -23,6 +23,7 @@ default-extensions:
 
 ghc-options:
   - -Wall
+  - -fllvm
   - -O2
 
 library:

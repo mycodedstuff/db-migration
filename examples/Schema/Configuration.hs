@@ -1,15 +1,10 @@
 module Schema.Configuration where
 
-import Data.Function ((&))
-import Data.Functor.Identity (Identity(Identity, runIdentity))
 import Data.Int (Int32)
-import Data.Monoid (Endo(Endo))
 import Data.Text
 import Data.Time (UTCTime)
 import qualified Database.Beam as B
 import qualified Database.Beam.Migrate as BM
-import qualified Database.Beam.Schema.Tables as B
-import Database.Beam.Schema.Tables (dbEntitySchema)
 import GHC.Generics (Generic)
 
 import Database.Migration.Utils.Beam

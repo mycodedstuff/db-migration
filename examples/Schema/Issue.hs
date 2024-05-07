@@ -20,7 +20,7 @@ data IssueT f = Issue
   , _message :: !(B.C f Text)
   , _status :: !(B.C f IssueStatus)
   , _image :: !(B.C f (Maybe BS.ByteString))
-  , _store :: !(B.C f (Maybe A.Value))
+  , _store :: !(B.C f (Maybe (BP.PgJSON A.Value)))
   , _createdAt :: !(B.C f UTCTime)
   , _updatedAt :: !(B.C f UTCTime)
   } deriving (Generic, B.Beamable)
@@ -56,9 +56,9 @@ instance BA.HasSqlValueSyntax BP.PgValueSyntax IssueStatus where
 
 instance BM.HasDefaultSqlDataType BP.Postgres IssueStatus where
   defaultSqlDataType _ _ _ = pgEnumerationType "enum_Issues_status"
-  defaultSqlDataTypeConstraints typ be embedded =
+  defaultSqlDataTypeConstraints _ _ _ =
     [ BM.FieldCheck
-        (\tblName nm ->
+        (\_ _ ->
            BM.p
              (BP.PgHasEnum
                 "enum_Issues_status"

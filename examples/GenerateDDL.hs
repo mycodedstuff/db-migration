@@ -2,21 +2,13 @@ module GenerateDDL where
 
 import Database.Migration as DBM
 import Database.Migration.Types as DBM
-import Database.Migration.Utils.Beam as DBM
 
-import qualified Data.Aeson as A
-import qualified Data.ByteString as BS
 import Data.Foldable (traverse_)
 import Data.Text
-import Data.Time (LocalTime)
 import qualified Database.Beam as B
-import qualified Database.Beam.Backend.SQL.SQL92 as BA
 import qualified Database.Beam.Migrate as BM
 import Database.Beam.Postgres (Postgres)
 import qualified Database.Beam.Postgres as BP
-import qualified Database.Beam.Postgres.CustomTypes as BP
-import qualified Database.Beam.Postgres.Syntax as BP
-import qualified Database.PostgreSQL.Simple.FromField as PS
 import GHC.Generics (Generic)
 
 import Schema.Configuration
@@ -54,6 +46,6 @@ main = do
   diff <- DBM.schemaDiff conn schema $ testDB schema
   case diff of
     Right DBM.Sync -> putStrLn "Schema in sync"
-    Right (DBM.Diff queries) -> traverse_ putStrLn queries
+    Right (DBM.Diff queries) -> traverse_ (putStrLn . unpack) queries
     Left err -> putStrLn err
   BP.close conn

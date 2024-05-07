@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.36.0.
+-- This file has been generated from package.yaml by hpack version 0.35.2.
 --
 -- see: https://github.com/sol/hpack
 
@@ -38,7 +38,8 @@ library
       DataKinds
       MultiParamTypeClasses
       FlexibleContexts
-  ghc-options: -O2
+      AllowAmbiguousTypes
+  ghc-options: -Wall -O2
   build-depends:
       aeson
     , base
@@ -79,7 +80,8 @@ executable generate-dll
       DataKinds
       MultiParamTypeClasses
       FlexibleContexts
-  ghc-options: -O2 -main-is GenerateDDL
+      AllowAmbiguousTypes
+  ghc-options: -Wall -O2 -main-is GenerateDDL
   build-depends:
       aeson
     , base

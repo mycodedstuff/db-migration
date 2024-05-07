@@ -2,56 +2,48 @@ module Database.Migration.Types where
 
 import qualified Data.Aeson as A
 import qualified Data.HashMap.Strict as HM
+import qualified Data.Map.Strict as Map
 import qualified Data.Text as T
-import qualified Data.Tree as DT
-import qualified Database.Beam.Migrate.Generics as BMG
-import qualified Database.Beam.Migrate.Simple as BM
+import qualified Database.Beam.Migrate as BM
 import qualified Database.Beam.Postgres as BP
-import qualified Database.Beam.Postgres.Syntax as BPS
 import GHC.Generics
 
 data DBDiff
   = Sync
-  | Diff ![String]
+  | Diff ![T.Text]
   deriving (Show)
 
-data TreeNode
-  = TreeNode
-      { name :: !T.Text
-      , predicate :: !(Maybe BM.SomeDatabasePredicate)
-      }
-  | Leaf !BM.SomeDatabasePredicate
-  deriving (Show, Eq)
+class RenderPredicate be p where
+  renderQuery :: p -> [T.Text]
+  mutatePredicate :: BP.Connection -> p -> IO p
 
-type DBTree = DT.Tree TreeNode
-
-type PredicateInfo a = HM.HashMap String a
+type PredicateInfo a = Map.Map T.Text a
 
 data CharTypeInfo = CharTypeInfo
   { prec :: !(Maybe T.Text)
   , collation :: !(Maybe T.Text)
-  } deriving (Generic, Show)
+  } deriving (Generic, Show, Eq)
 
 instance A.FromJSON CharTypeInfo
 
 data TimestampTypeInfo = TimestampTypeInfo
   { prec :: !(Maybe T.Text)
   , timezone :: !Bool
-  } deriving (Generic, Show)
+  } deriving (Generic, Show, Eq)
 
 instance A.FromJSON TimestampTypeInfo
 
 data NumericTypeInfo = NumericTypeInfo
   { prec :: !(Maybe Word)
   , decimal :: !(Maybe Word)
-  } deriving (Generic, Show)
+  } deriving (Generic, Show, Eq)
 
 instance A.FromJSON NumericTypeInfo
 
 data TypeInfo = TypeInfo
   { be_specific :: !T.Text
   , be_data :: !A.Value
-  } deriving (Generic, Show)
+  } deriving (Generic, Show, Eq)
 
 instance A.FromJSON TypeInfo where
   parseJSON =
@@ -85,7 +77,7 @@ data ColumnInfo
   | Bytea !TypeInfo
   | Enum !T.Text
   | BigInt
-  deriving (Generic, Show)
+  deriving (Generic, Show, Eq)
 
 instance A.FromJSON ColumnInfo where
   parseJSON =
@@ -96,8 +88,7 @@ instance A.FromJSON ColumnInfo where
       A.String "bigint" -> return BigInt
       val ->
         case A.fromJSON val of
-          A.Error err --fail $ "Expected TypeInfo got : " ++ show err
-           ->
+          A.Error err ->
             A.genericParseJSON
               (A.defaultOptions {A.sumEncoding = A.UntaggedValue})
               val
@@ -115,32 +106,28 @@ data TableHasColumnInfo = TableHasColumnInfo
   { _table :: !BM.QualifiedName
   , _column :: !T.Text
   , _type :: !ColumnInfo
-  } deriving (Generic, Show)
+  } deriving (Generic, Show, Eq)
 
 instance A.FromJSON TableHasColumnInfo where
   parseJSON =
     A.genericParseJSON
       $ A.defaultOptions {A.fieldLabelModifier = Prelude.drop 1}
 
-data ConstraintType
-  = NOT_NULL
-  | UNIQUE
-  | PRIMARY_KEY -- Check, ForeignKey
-  deriving (Generic, Show)
+data ConstraintType =
+  NOT_NULL
+  deriving (Generic, Show, Eq)
 
 instance A.FromJSON ConstraintType where
   parseJSON =
     \case
       (A.String "not-null") -> return NOT_NULL
-      (A.String "unique") -> return UNIQUE
-      (A.String "primary-key") -> return PRIMARY_KEY
       c -> fail $ "Unhandled constraint type: " ++ show c
 
 data ConstraintInfo = ConstraintInfo
-  { name :: !(Maybe String) -- Constraint Name
-  , attributes :: !(Maybe [String])
+  { name :: !(Maybe T.Text) -- Constraint Name
+  , attributes :: !(Maybe [T.Text])
   , constraint :: !ConstraintType
-  } deriving (Generic, Show)
+  } deriving (Generic, Show, Eq)
 
 instance A.FromJSON ConstraintInfo
 
@@ -148,7 +135,7 @@ data ColumnConstraintInfo = ColumnConstraintInfo
   { _table :: !BM.QualifiedName
   , _column :: !T.Text
   , _constraint :: !ConstraintInfo
-  } deriving (Generic, Show)
+  } deriving (Generic, Show, Eq)
 
 instance A.FromJSON ColumnConstraintInfo where
   parseJSON =
@@ -158,16 +145,51 @@ instance A.FromJSON ColumnConstraintInfo where
 data PrimaryKeyInfo = PrimaryKeyInfo
   { table :: !BM.QualifiedName
   , columns :: ![T.Text]
-  } deriving (Generic, Show, A.FromJSON)
+  } deriving (Generic, Show, A.FromJSON, Eq)
 
 newtype TableInfo =
   TableInfo BM.QualifiedName
-  deriving (Generic, Show, A.FromJSON)
+  deriving (Generic, Show, A.FromJSON, Eq)
 
 data EnumInfo = EnumInfo
   { name :: !T.Text
   , values :: ![T.Text]
-  } deriving (Generic, Show, A.FromJSON)
+  } deriving (Generic, Show, A.FromJSON, Eq)
 
-instance BMG.HasDefaultSqlDataType BP.Postgres A.Value where
-  defaultSqlDataType _ _ _ = BPS.pgJsonType
+data TablePredicate =
+  TablePredicate
+    !TableInfo
+    !(Map.Map T.Text ColumnPredicate)
+    !(Maybe PrimaryKeyInfo)
+  deriving (Generic, Show, Eq)
+
+type ExistingEnumValues = [T.Text]
+
+data DBPredicate
+  = DBHasEnum !EnumPredicate
+  | DBHasTable !TablePredicate
+  | DBTableHasColumns !(Map.Map T.Text ColumnPredicate)
+  deriving (Generic, Show, Eq)
+
+instance Ord DBPredicate where
+  compare p1 p2 =
+    case (p1, p2) of
+      (DBHasEnum _, _) -> LT
+      (DBHasTable _, DBHasEnum _) -> GT
+      (DBHasTable _, DBTableHasColumns _) -> LT
+      (DBTableHasColumns _, _) -> GT
+      _same -> EQ
+
+data ColumnPredicate = ColumnPredicate
+  { columnName :: !T.Text
+  , columnTable :: !BM.QualifiedName
+  , columnType :: !(Maybe ColumnInfo)
+  , columnConstraint :: ![ColumnConstraintInfo]
+  , isPrimary :: !(Maybe PrimaryKeyInfo)
+  , existsInDB :: !Bool
+  } deriving (Generic, Show, Eq)
+
+data EnumPredicate = EnumPredicate
+  { enumInfo :: !EnumInfo
+  , enumValuesInDB :: ![T.Text]
+  } deriving (Generic, Show, Eq)

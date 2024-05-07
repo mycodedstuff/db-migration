@@ -8,6 +8,7 @@
 ![Postgres](https://img.shields.io/badge/postgres-%23316192.svg?style=for-the-badge&logo=postgresql&logoColor=white)
 ### A Haskell library to generate DDL queries by analyzing diff between Haskell and Database schema based on [beam](https://github.com/mycodedstuff/beam)
 
+
 #### How can this library help?
 
 1. Generate SQL statements for a given schema (trick is to run it against an empty schema)
@@ -19,6 +20,16 @@
 Module Database.Migration exports a function schemaDiff which takes a Connection (postgresql-simple Connection type), schema name and a CheckedDatabaseSetting which returns either DB is in sync or a list of DDL statements.
 
 Refer to [examples](examples) for implementation
+
+Example output:
+```shell
+❯ stack run
+Initiating connect
+Connected to postgres
+create type "enum_Issues_status" as enum ('RAISED', 'ACTIVE', 'RESOLVED');
+create table if not exists public."Configurations" ("createdAt" timestamp with time zone not null, "id" int not null primary key, "key" varchar not null, "updatedAt" timestamp with time zone not null, "value" varchar not null);
+create table if not exists public."Issues" ("createdAt" timestamp with time zone not null, "id" varchar not null primary key, "image" bytea, "message" varchar not null, "status" "enum_Issues_status" not null, "store" json, "updatedAt" timestamp with time zone not null);
+```
 
 #### TODOs
 

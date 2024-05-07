@@ -19,8 +19,10 @@ default-extensions:
   - DataKinds
   - MultiParamTypeClasses
   - FlexibleContexts
+  - AllowAmbiguousTypes
 
 ghc-options:
+  - -Wall
   - -O2
 
 library:

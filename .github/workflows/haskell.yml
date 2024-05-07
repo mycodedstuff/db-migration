@@ -18,7 +18,9 @@ jobs:
     name: GHC ${{ matrix.ghc }} on ${{ matrix.os }}
     steps:
       - if: matrix.os == 'macOS-latest'
-        run: brew install llvm@12
+        run: |
+          brew install llvm@12
+          echo "/usr/local/opt/llvm@12/bin" >> $GITHUB_PATH
       - uses: actions/checkout@v4
       - name: Setup Haskell
         uses: haskell-actions/setup@v2

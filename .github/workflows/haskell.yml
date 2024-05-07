@@ -21,19 +21,28 @@ jobs:
         run: |
           brew install llvm@12
           brew link llvm@12
-          echo "/usr/local/opt/llvm@12/bin" >> $GITHUB_PATH
-          echo "$PATH"
+
+      - name: Set up PostgreSQL
+        uses: ikalnytskyi/action-setup-postgres@v6
+        id: postgres
+        with:
+          password: ""
+          database: testdb
+
       - uses: actions/checkout@v4
+
       - name: Setup Haskell
         uses: haskell-actions/setup@v2
         with:
           ghc-version: ${{ matrix.ghc }}
           enable-stack: true
           stack-version: 'latest'
+
       - name: Configure stack
         run: |
           stack config set system-ghc --global true
           stack config set install-ghc --global false
+
       - name: Cache
         uses: actions/cache@v4
         env:
@@ -41,7 +50,9 @@ jobs:
         with:
           path: ~/.stack
           key: ${{ matrix.os }}-ghc-${{ matrix.ghc }}-build-${{ env.cache-name }}-${{ hashFiles('**/stack.yaml') }}-${{ hashFiles('**/stack.yaml.lock') }}-${{ hashFiles('**/package.yaml') }}
+
       - name: Build dependencies
         run: stack build --only-dependencies
+
       - name: Build
         run: stack build

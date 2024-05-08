@@ -7,55 +7,55 @@ packages:
 - completed:
     name: beam-core
     pantry-tree:
-      sha256: 80ce66c991a414e6f00e49657be440f17d25d00181ebb144a13d59524297d43e
-      size: 2623
-    sha256: a21dbec3fc7532b08e120f048d18c25c93025dfc38b1b2ddc32bc52e0b9fc3a5
-    size: 1202055
+      sha256: a05198c6061aacde8ed505138228ea176dca80a555f2390ba0c4599d95c54482
+      size: 2705
+    sha256: 781e9ba51917125c68854806303ea2e31f7bc5762805121e9b603ccab65a1d44
+    size: 1210235
     subdir: beam-core
-    url: https://github.com/mycodedstuff/beam/archive/7ae8a01e4e416b31412d4c6f4a6abbaa473ce961.tar.gz
-    version: 0.9.0.0
+    url: https://github.com/mycodedstuff/beam/archive/799fe6234976a486861ad0c49c297e47765dbd13.tar.gz
+    version: 0.10.1.0
   original:
     subdir: beam-core
-    url: https://github.com/mycodedstuff/beam/archive/7ae8a01e4e416b31412d4c6f4a6abbaa473ce961.tar.gz
+    url: https://github.com/mycodedstuff/beam/archive/799fe6234976a486861ad0c49c297e47765dbd13.tar.gz
 - completed:
     name: beam-migrate
     pantry-tree:
-      sha256: 36ff215c5108b0ae85ada3d620bd18a79b12864a980478b91b2b50d4ba7cdd60
-      size: 1825
-    sha256: a21dbec3fc7532b08e120f048d18c25c93025dfc38b1b2ddc32bc52e0b9fc3a5
-    size: 1202055
+      sha256: f7ecd3ba944b6495cdb1ba3d3cfd7181d2a76bf619cf4091e4059858d083ecc0
+      size: 1826
+    sha256: 781e9ba51917125c68854806303ea2e31f7bc5762805121e9b603ccab65a1d44
+    size: 1210235
     subdir: beam-migrate
-    url: https://github.com/mycodedstuff/beam/archive/7ae8a01e4e416b31412d4c6f4a6abbaa473ce961.tar.gz
-    version: 0.5.0.0
+    url: https://github.com/mycodedstuff/beam/archive/799fe6234976a486861ad0c49c297e47765dbd13.tar.gz
+    version: 0.5.2.1
   original:
     subdir: beam-migrate
-    url: https://github.com/mycodedstuff/beam/archive/7ae8a01e4e416b31412d4c6f4a6abbaa473ce961.tar.gz
+    url: https://github.com/mycodedstuff/beam/archive/799fe6234976a486861ad0c49c297e47765dbd13.tar.gz
 - completed:
     name: beam-postgres
     pantry-tree:
-      sha256: 5436f390a8ba196fbc86ff16aa14c5c06cdc8732a5fab20f3c1afabc95243a4a
-      size: 2594
-    sha256: a21dbec3fc7532b08e120f048d18c25c93025dfc38b1b2ddc32bc52e0b9fc3a5
-    size: 1202055
+      sha256: d902243ee7d30390b5b22e96da1f6e6cb5cd053975f9fa512dd99aa08b2c6c23
+      size: 2684
+    sha256: 781e9ba51917125c68854806303ea2e31f7bc5762805121e9b603ccab65a1d44
+    size: 1210235
     subdir: beam-postgres
-    url: https://github.com/mycodedstuff/beam/archive/7ae8a01e4e416b31412d4c6f4a6abbaa473ce961.tar.gz
-    version: 0.5.0.0
+    url: https://github.com/mycodedstuff/beam/archive/799fe6234976a486861ad0c49c297e47765dbd13.tar.gz
+    version: 0.5.3.1
   original:
     subdir: beam-postgres
-    url: https://github.com/mycodedstuff/beam/archive/7ae8a01e4e416b31412d4c6f4a6abbaa473ce961.tar.gz
+    url: https://github.com/mycodedstuff/beam/archive/799fe6234976a486861ad0c49c297e47765dbd13.tar.gz
 - completed:
     name: beam-sqlite
     pantry-tree:
-      sha256: 2dd9e45a45b3826e587f25118ed3035c2218d8652c32311c8369a95410be5f29
-      size: 859
-    sha256: a21dbec3fc7532b08e120f048d18c25c93025dfc38b1b2ddc32bc52e0b9fc3a5
-    size: 1202055
+      sha256: 69b10471c280ad5e58bf20421e521cb788d62def03aa165d47fe892621b652cc
+      size: 1229
+    sha256: 781e9ba51917125c68854806303ea2e31f7bc5762805121e9b603ccab65a1d44
+    size: 1210235
     subdir: beam-sqlite
-    url: https://github.com/mycodedstuff/beam/archive/7ae8a01e4e416b31412d4c6f4a6abbaa473ce961.tar.gz
-    version: 0.5.0.0
+    url: https://github.com/mycodedstuff/beam/archive/799fe6234976a486861ad0c49c297e47765dbd13.tar.gz
+    version: 0.5.3.0
   original:
     subdir: beam-sqlite
-    url: https://github.com/mycodedstuff/beam/archive/7ae8a01e4e416b31412d4c6f4a6abbaa473ce961.tar.gz
+    url: https://github.com/mycodedstuff/beam/archive/799fe6234976a486861ad0c49c297e47765dbd13.tar.gz
 snapshots:
 - completed:
     sha256: 428ec8d5ce932190d3cbe266b9eb3c175cd81e984babf876b64019e2cbe4ea68

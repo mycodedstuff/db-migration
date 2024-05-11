@@ -1,12 +1,14 @@
 module Database.Migration.Types where
 
 import qualified Data.Aeson as A
-import qualified Data.HashMap.Strict as HM
+import qualified Data.Aeson.Types as A
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as T
 import qualified Database.Beam.Migrate as BM
 import qualified Database.Beam.Postgres as BP
 import GHC.Generics
+
+import Database.Migration.Predicate
 
 data DBDiff
   = Sync
@@ -15,12 +17,12 @@ data DBDiff
 
 class RenderPredicate be p where
   renderQuery :: p -> [T.Text]
-  mutatePredicate :: BP.Connection -> p -> IO p
+  mutatePredicate :: BP.Connection -> Map.Map T.Text DBPredicate -> p -> IO p
 
 type PredicateInfo a = Map.Map T.Text a
 
 data CharTypeInfo = CharTypeInfo
-  { prec :: !(Maybe T.Text)
+  { prec :: !(Maybe Integer)
   , collation :: !(Maybe T.Text)
   } deriving (Generic, Show, Eq)
 
@@ -39,6 +41,16 @@ data NumericTypeInfo = NumericTypeInfo
   } deriving (Generic, Show, Eq)
 
 instance A.FromJSON NumericTypeInfo
+
+data CustomType
+  = CustomType
+      { customType :: !A.Value
+      }
+  | ArrType
+      { mod :: !Integer
+      , oid :: !Integer
+      }
+  deriving (Generic, Show, Eq, A.FromJSON)
 
 data TypeInfo = TypeInfo
   { be_specific :: !T.Text
@@ -77,30 +89,47 @@ data ColumnInfo
   | Bytea !TypeInfo
   | Enum !T.Text
   | BigInt
+  | PgText
+  | JSONB
+  | Arr !ColumnInfo
   deriving (Generic, Show, Eq)
 
 instance A.FromJSON ColumnInfo where
-  parseJSON =
-    \case
+  parseJSON v =
+    case v of
       A.String "int" -> return Integer
       A.String "boolean" -> return Boolean
       A.String "double" -> return Double
       A.String "bigint" -> return BigInt
       val ->
-        case A.fromJSON val of
-          A.Error err ->
-            A.genericParseJSON
-              (A.defaultOptions {A.sumEncoding = A.UntaggedValue})
-              val
-          A.Success (result :: TypeInfo) ->
-            case be_data result of
-              "json" -> return JSON
-              "bytea" -> return $ Bytea result
-              A.Object hm ->
-                case HM.lookup "customType" hm of
-                  Just (A.String enum) -> return $ Enum enum
-                  _unknown -> fail $ "Expected enum got " ++ show val
-              _ignore -> fail $ "Unhandled column type " ++ show val
+        case A.parse
+               (A.genericParseJSON
+                  $ A.defaultOptions {A.sumEncoding = A.UntaggedValue})
+               val of
+          A.Success cInfo -> return cInfo
+          A.Error _ ->
+            case A.fromJSON val of
+              A.Error err -> fail $ "Expected TypeInfo: " ++ show err
+              A.Success (result :: TypeInfo) ->
+                case be_data result of
+                  "json" -> return JSON
+                  "bytea" -> return $ Bytea result
+                  "text" -> return PgText
+                  "jsonb" -> return JSONB
+                  rest ->
+                    case A.fromJSON rest of
+                      A.Error err -> fail $ "Expected CustomType: " ++ show err
+                      A.Success (res :: CustomType) ->
+                        case res of
+                          CustomType (A.String enum) -> return $ Enum enum
+                          ArrType _mod oid ->
+                            if oid == 1015
+                              then return
+                                     $ Arr
+                                     $ VarChar
+                                     $ CharTypeInfo (Just _mod) Nothing
+                              else fail $ "Unhandled oid " ++ show val
+                          _unknown -> fail $ "Unhandled type " ++ show val
 
 data TableHasColumnInfo = TableHasColumnInfo
   { _table :: !BM.QualifiedName
@@ -149,7 +178,8 @@ data PrimaryKeyInfo = PrimaryKeyInfo
 
 newtype TableInfo =
   TableInfo BM.QualifiedName
-  deriving (Generic, Show, A.FromJSON, Eq)
+  deriving (Generic, Show, Eq)
+  deriving anyclass (A.FromJSON)
 
 data EnumInfo = EnumInfo
   { name :: !T.Text
@@ -165,8 +195,14 @@ data TablePredicate =
 
 type ExistingEnumValues = [T.Text]
 
+data SequencePredicate = SequencePredicate
+  { predicate :: !PgHasSequence
+  , sequenceInDB :: !(Maybe PgHasSequence)
+  } deriving (Generic, Show, Eq)
+
 data DBPredicate
   = DBHasEnum !EnumPredicate
+  | DBHasSequence !SequencePredicate
   | DBHasTable !TablePredicate
   | DBTableHasColumns !(Map.Map T.Text ColumnPredicate)
   deriving (Generic, Show, Eq)
@@ -175,7 +211,11 @@ instance Ord DBPredicate where
   compare p1 p2 =
     case (p1, p2) of
       (DBHasEnum _, _) -> LT
+      (DBHasSequence _, DBHasEnum _) -> GT
+      (DBHasSequence _, DBHasTable _) -> LT
+      (DBHasSequence _, DBTableHasColumns _) -> LT
       (DBHasTable _, DBHasEnum _) -> GT
+      (DBHasTable _, DBHasSequence _) -> GT
       (DBHasTable _, DBTableHasColumns _) -> LT
       (DBTableHasColumns _, _) -> GT
       _same -> EQ
@@ -186,7 +226,8 @@ data ColumnPredicate = ColumnPredicate
   , columnType :: !(Maybe ColumnInfo)
   , columnConstraint :: ![ColumnConstraintInfo]
   , isPrimary :: !(Maybe PrimaryKeyInfo)
-  , existsInDB :: !Bool
+  , columnDefault :: !(Maybe ColumnDefault)
+  , columnExistsInDB :: !Bool
   } deriving (Generic, Show, Eq)
 
 data EnumPredicate = EnumPredicate

@@ -1,15 +1,16 @@
+{-# OPTIONS_GHC -Wno-orphans #-}
+
 module Database.Migration.Backend.Postgres where
 
 import qualified Data.Foldable as DF
 import qualified Data.Map.Strict as Map
-import Data.String (fromString)
+import Data.Maybe (isJust)
 import qualified Data.Text as T
-import qualified Data.Vector as V
 import qualified Database.Beam.Migrate.Types as BM
 import qualified Database.Beam.Postgres as BP
-import qualified Database.PostgreSQL.Simple as Pg
 
-import Data.Maybe (catMaybes, fromMaybe)
+import Data.Scientific (FPFormat(Fixed), formatScientific)
+import Database.Migration.Predicate
 import Database.Migration.Types
 import Database.Migration.Utils.Beam
 import Database.Migration.Utils.Common
@@ -20,18 +21,19 @@ mkConstraintTypeToSqlSyntax ColumnConstraintInfo {..} =
     NOT_NULL -> "not null"
 
 mkColumnForCreateTable :: ColumnPredicate -> T.Text
-mkColumnForCreateTable (ColumnPredicate name _ (Just _type) constraints maybePKey _) =
+mkColumnForCreateTable (ColumnPredicate name _ (Just _type) constraints maybePKey mDefault _) =
   T.intercalate " "
     $ [quote name, columnTypeToSqlType _type]
         ++ fmap mkConstraintTypeToSqlSyntax constraints
         ++ maybe [] (const ["primary key"]) maybePKey
-mkColumnForCreateTable (ColumnPredicate _ _ Nothing _ _ _) =
+        ++ maybe [] (\d -> ["default", mkDefault d]) mDefault
+mkColumnForCreateTable (ColumnPredicate _ _ Nothing _ _ _ _) =
   error "Expected column info to exist for create table"
 
 instance RenderPredicate BP.Postgres TablePredicate where
-  mutatePredicate _ p = return p
-  renderQuery (TablePredicate (TableInfo tableName) columns maybePKey) =
-    if Map.null columns
+  mutatePredicate _ _ p = return p
+  renderQuery (TablePredicate (TableInfo tableName) columnPredicates maybePKey) =
+    if Map.null columnPredicates
       then case maybePKey of
              Just PrimaryKeyInfo {..} ->
                [ "alter table "
@@ -49,7 +51,7 @@ instance RenderPredicate BP.Postgres TablePredicate where
                <> " ("
                <> T.intercalate
                     ", "
-                    (mkColumnForCreateTable <$> Map.elems columns)
+                    (mkColumnForCreateTable <$> Map.elems columnPredicates)
                <> maybe
                     ""
                     (\(PrimaryKeyInfo _ pColumns) ->
@@ -66,21 +68,14 @@ mkAlterSuffix columnName ConstraintInfo {..} =
     NOT_NULL -> "alter column " <> quote columnName <> " set not null;"
 
 instance RenderPredicate BP.Postgres ColumnPredicate where
-  mutatePredicate conn p@ColumnPredicate {columnName, columnTable} = do
-    let BM.QualifiedName maybeSchema tableName = columnTable
-        schemaName = fromMaybe "public" maybeSchema
-    columnExists :: [Pg.Only Int] <-
-      Pg.query_
-        conn
-        (fromString
-           (Prelude.unlines
-              [ "SELECT 1 FROM information_schema.columns"
-              , "where table_schema = '" ++ T.unpack schemaName ++ "'"
-              , "and table_name = '" ++ T.unpack tableName ++ "'"
-              , "and column_name = '" ++ T.unpack columnName ++ "' LIMIT 1;"
-              ])) :: IO [Pg.Only Int]
-    return $ p {existsInDB = not $ null columnExists}
-  renderQuery p@(ColumnPredicate columnName tableName maybeType constraints maybePKey existsInDB) =
+  mutatePredicate _ dbPreds p@ColumnPredicate {columnName, columnTable} = do
+    let columnExists =
+          case Map.lookup (mkTableName columnTable) dbPreds of
+            Just (DBHasTable (TablePredicate _ colMap _)) ->
+              isJust $ Map.lookup columnName colMap
+            _ignore -> False
+    return $ p {columnExistsInDB = columnExists}
+  renderQuery p@(ColumnPredicate columnName tableName maybeType constraints maybePKey mDefault existsInDB) =
     if existsInDB
       then maybe
              []
@@ -94,6 +89,21 @@ instance RenderPredicate BP.Postgres ColumnPredicate where
                     <> ";"
                 ])
              maybeType
+             ++ maybe
+                  []
+                  (\_default ->
+                     [ T.intercalate
+                         " "
+                         [ "alter table"
+                         , mkTableName tableName
+                         , "alter column"
+                         , quote columnName
+                         , "set default"
+                         , mkDefault _default
+                         ]
+                         <> ";"
+                     ])
+                  mDefault
              ++ fmap
                   (\ColumnConstraintInfo {..} ->
                      T.intercalate
@@ -121,6 +131,13 @@ instance RenderPredicate BP.Postgres ColumnPredicate where
                <> mkColumnForCreateTable p
                <> ";"
            ]
+
+mkDefault :: ColumnDefault -> T.Text
+mkDefault =
+  \case
+    LiteralInt mScale num -> T.pack $ formatScientific Fixed mScale num
+    LiteralStr str -> str
+    Sequence str -> str
 
 mkPrimaryContraintName :: BM.QualifiedName -> T.Text
 mkPrimaryContraintName (BM.QualifiedName _ tableName) = tableName <> "_pkey"
@@ -150,21 +167,57 @@ instance RenderPredicate BP.Postgres EnumPredicate where
                       <> val
                       <> "';")
                  missingEnums
-  mutatePredicate conn p@EnumPredicate {enumInfo} = do
+  mutatePredicate _ dbPreds p@EnumPredicate {enumInfo} = do
     let EnumInfo {name} = enumInfo
-    enumerationData :: [Maybe (Pg.Only (V.Vector T.Text))] <-
-      Pg.query_
-        conn
-        (fromString
-           (Prelude.unlines
-              [ "SELECT array_agg(e.enumlabel ORDER BY e.enumsortorder) as values"
-              , "FROM pg_enum e JOIN pg_type t ON t.oid = e.enumtypid"
-              , "where t.typnamespace = (select oid from pg_namespace where nspname = 'public')"
-              , "and t.typname = '" ++ T.unpack name ++ "' LIMIT 1;"
-              ]))
-    case V.toList . Pg.fromOnly <$> catMaybes enumerationData of
-      [] -> return p
-      x:_ -> return $ p {enumValuesInDB = x}
+        enumValuesInDB =
+          case Map.lookup name dbPreds of
+            Just (DBHasEnum (EnumPredicate _ dbValues)) -> dbValues
+            _ignore -> []
+    return $ p {enumValuesInDB = enumValuesInDB}
+
+instance RenderPredicate BP.Postgres SequencePredicate where
+  renderQuery (SequencePredicate PgHasSequence {..} exists) =
+    case exists of
+      Nothing ->
+        [ (<> ";") . T.intercalate " "
+            $ [ "create sequence if not exists"
+              , mkTableName seqName
+              , "increment by"
+              , T.pack (show seqStep)
+              , "minvalue"
+              , T.pack (show $ fst seqRange)
+              , "maxvalue"
+              , T.pack (show $ snd seqRange)
+              , "start with"
+              , T.pack (show seqOffset)
+              ]
+                ++ ["CYCLE" | seqCycle]
+        ]
+      Just (PgHasSequence _ range offset step wrap) ->
+        (<> ";")
+          . T.intercalate " "
+          . (["alter sequence if exists", mkTableName seqName] ++)
+          <$> [ ["increment by " <> T.pack (show step) | step /= seqStep]
+              , [ "minvalue " <> T.pack (show $ fst range)
+                | fst range /= fst seqRange
+                ]
+              , [ "maxvalue " <> T.pack (show $ snd range)
+                | snd range /= snd seqRange
+                ]
+              , ["start " <> T.pack (show offset) | offset /= seqOffset]
+              , [ if wrap
+                  then "cycle"
+                  else "no cycle"
+                | wrap /= seqCycle
+                ]
+              ]
+  mutatePredicate _ dbPreds p@SequencePredicate {predicate} = do
+    let PgHasSequence {seqName} = predicate
+        sequenceExists =
+          case Map.lookup (mkTableName seqName) dbPreds of
+            Just (DBHasSequence (SequencePredicate seqP _)) -> Just seqP
+            _ignore -> Nothing
+    return $ p {sequenceInDB = sequenceExists}
 
 instance RenderPredicate BP.Postgres DBPredicate where
   renderQuery =
@@ -172,9 +225,12 @@ instance RenderPredicate BP.Postgres DBPredicate where
       DBHasTable p -> renderQuery @BP.Postgres p
       DBTableHasColumns p -> concat $ renderQuery @BP.Postgres <$> p
       DBHasEnum p -> renderQuery @BP.Postgres p
-  mutatePredicate conn =
+      DBHasSequence p -> renderQuery @BP.Postgres p
+  mutatePredicate conn predMap =
     \case
-      DBHasTable p -> DBHasTable <$> mutatePredicate @BP.Postgres conn p
+      DBHasTable p -> DBHasTable <$> mutatePredicate @BP.Postgres conn predMap p
       DBTableHasColumns p ->
-        DBTableHasColumns <$> mapM (mutatePredicate @BP.Postgres conn) p
-      DBHasEnum p -> DBHasEnum <$> mutatePredicate @BP.Postgres conn p
+        DBTableHasColumns <$> mapM (mutatePredicate @BP.Postgres conn predMap) p
+      DBHasEnum p -> DBHasEnum <$> mutatePredicate @BP.Postgres conn predMap p
+      DBHasSequence p ->
+        DBHasSequence <$> mutatePredicate @BP.Postgres conn predMap p

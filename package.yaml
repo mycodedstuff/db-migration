@@ -20,6 +20,7 @@ default-extensions:
   - MultiParamTypeClasses
   - FlexibleContexts
   - AllowAmbiguousTypes
+  - GeneralizedNewtypeDeriving
 
 ghc-options:
   - -Wall
@@ -41,6 +42,8 @@ library:
     - ghc-prim
     - postgresql-simple
     - vector
+    - hashable
+    - scientific
 
 executables:
   generate-dll:

@@ -14,7 +14,9 @@ library
   exposed-modules:
       Database.Migration
       Database.Migration.Backend.Postgres
+      Database.Migration.Predicate
       Database.Migration.Types
+      Database.Migration.Types.Sequence
       Database.Migration.Utils.Beam
       Database.Migration.Utils.Common
       Database.Migration.Utils.Parser
@@ -39,6 +41,7 @@ library
       MultiParamTypeClasses
       FlexibleContexts
       AllowAmbiguousTypes
+      GeneralizedNewtypeDeriving
   ghc-options: -Wall -O2
   build-depends:
       aeson
@@ -49,8 +52,10 @@ library
     , bytestring
     , containers
     , ghc-prim
+    , hashable
     , integer-gmp
     , postgresql-simple
+    , scientific
     , text
     , unordered-containers
     , vector
@@ -81,6 +86,7 @@ executable generate-dll
       MultiParamTypeClasses
       FlexibleContexts
       AllowAmbiguousTypes
+      GeneralizedNewtypeDeriving
   ghc-options: -Wall -O2 -main-is GenerateDDL
   build-depends:
       aeson

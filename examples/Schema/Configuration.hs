@@ -8,9 +8,10 @@ import qualified Database.Beam.Migrate as BM
 import GHC.Generics (Generic)
 
 import Database.Migration.Utils.Beam
+import Database.Migration.Types.Sequence
 
 data ConfigurationT f = ConfigurationT
-  { _id :: !(B.C f Int32)
+  { _id :: !(B.C f (AutoIncrement Int32))
   , _key :: !(B.C f Text)
   , _value :: !(B.C f Text)
   , _createdAt :: !(B.C f UTCTime)
@@ -19,7 +20,7 @@ data ConfigurationT f = ConfigurationT
 
 instance B.Table ConfigurationT where
   data PrimaryKey ConfigurationT f =
-    ConfigurationPrimaryKey (B.C f Int32)
+    ConfigurationPrimaryKey (B.C f (AutoIncrement Int32))
     deriving (Generic, B.Beamable)
   primaryKey = ConfigurationPrimaryKey . _id
 

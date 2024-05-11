@@ -14,6 +14,11 @@ import qualified Database.Beam.Migrate.Types as BM
 import qualified Database.Beam.Postgres.Syntax as BP
 import qualified Database.Beam.Schema.Tables as BT
 
+import Data.Char (toUpper)
+import Database.Migration.Predicate
+  ( PgHasSequence(..)
+  , TableColumnHasDefault(..)
+  )
 import Database.Migration.Types
 import Database.Migration.Utils.Common
 import Database.Migration.Utils.Parser
@@ -26,7 +31,7 @@ pgEnumerationType nm =
     (BP.pgDataTypeJSON (A.object ["customType" A..= nm]))
 
 columnTypeToSqlType :: ColumnInfo -> T.Text
-columnTypeToSqlType (VarChar _) = "varchar"
+columnTypeToSqlType (VarChar cTypeInfo) = "varchar" <> mkVarcharPrec cTypeInfo
 columnTypeToSqlType (Char _) = "char"
 columnTypeToSqlType Integer = "int"
 columnTypeToSqlType (Numeric info) = "numeric" <> mkNumericPrec info
@@ -41,6 +46,17 @@ columnTypeToSqlType (Timestamp TimestampTypeInfo {timezone}) =
     <> if timezone
          then " with time zone"
          else ""
+columnTypeToSqlType PgText = "text"
+columnTypeToSqlType JSONB = "jsonb"
+columnTypeToSqlType (Arr c) = columnTypeToSqlType c <> "[]"
+
+-- Handle collation
+mkVarcharPrec :: CharTypeInfo -> T.Text
+mkVarcharPrec (CharTypeInfo mPrec _) =
+  T.pack
+    $ case mPrec of
+        Just prec -> "(" ++ show prec ++ ")"
+        Nothing -> ""
 
 mkNumericPrec :: NumericTypeInfo -> T.Text
 mkNumericPrec (NumericTypeInfo maybePrec maybeDecimal) =
@@ -69,6 +85,8 @@ groupPredicates =
            groupConstraintPredicate predicate acc
          "TableHasPrimaryKey" -> groupPrimaryKeyPredicate predicate acc
          "PgHasEnum" -> groupEnumPredicate predicate acc
+         "PgHasSequence" -> groupSequencePredicate predicate acc
+         "TableColumnHasDefault" -> groupColumnDefaultPredicate predicate acc
          _ -> acc)
     Map.empty
 
@@ -97,7 +115,7 @@ groupColumnPredicate ::
 groupColumnPredicate predicate acc = do
   let TableHasColumnInfo {..} = parseTableHasColumnPredicate predicate
       columnPredicate =
-        ColumnPredicate _column _table (Just _type) [] Nothing False
+        ColumnPredicate _column _table (Just _type) [] Nothing Nothing False
    in Map.insertWith
         (\newV oldV ->
            case oldV of
@@ -122,7 +140,14 @@ groupConstraintPredicate predicate acc = do
   let constraintInfo@ColumnConstraintInfo {_table, _column} =
         parseTableColumnConstraintPredicate predicate
       columnPredicate =
-        ColumnPredicate _column _table Nothing [constraintInfo] Nothing False
+        ColumnPredicate
+          _column
+          _table
+          Nothing
+          [constraintInfo]
+          Nothing
+          Nothing
+          False
    in Map.insertWith
         (\newV oldV ->
            case oldV of
@@ -150,7 +175,7 @@ groupPrimaryKeyPredicate predicate acc = do
         [] -> acc
         [c] ->
           let columnPredicate =
-                ColumnPredicate c table Nothing [] (Just pKeyInfo) False
+                ColumnPredicate c table Nothing [] (Just pKeyInfo) Nothing False
            in Map.insertWith
                 (\newV oldV ->
                    case oldV of
@@ -187,6 +212,48 @@ groupEnumPredicate predicate acc = do
   let enumInfo@EnumInfo {name} = parsePgHasEnum predicate
    in Map.insert name (DBHasEnum $ EnumPredicate enumInfo []) acc
 
+groupSequencePredicate ::
+     BM.SomeDatabasePredicate
+  -> Map.Map T.Text DBPredicate
+  -> Map.Map T.Text DBPredicate
+groupSequencePredicate predicate acc = do
+  let sequencePredicate@PgHasSequence {seqName} = parsePgHasSequence predicate
+   in Map.insert
+        (mkTableName seqName)
+        (DBHasSequence $ SequencePredicate sequencePredicate Nothing)
+        acc
+
+groupColumnDefaultPredicate ::
+     BM.SomeDatabasePredicate
+  -> Map.Map T.Text DBPredicate
+  -> Map.Map T.Text DBPredicate
+groupColumnDefaultPredicate predicate acc = do
+  let TableColumnHasDefault {..} = parseTableHasColumnDefault predicate
+      columnPredicate =
+        ColumnPredicate
+          colName
+          table
+          Nothing
+          []
+          Nothing
+          (Just defaultValue)
+          False
+   in Map.insertWith
+        (\newV oldV ->
+           case oldV of
+             DBHasTable (TablePredicate tableInfo preds pKey) ->
+               DBHasTable
+                 (TablePredicate
+                    tableInfo
+                    (upsertColumnPredicate columnPredicate preds)
+                    pKey)
+             DBTableHasColumns preds ->
+               DBTableHasColumns $ upsertColumnPredicate columnPredicate preds
+             _ignore -> newV)
+        (mkTableName table)
+        (DBTableHasColumns $ Map.singleton colName columnPredicate)
+        acc
+
 upsertColumnPredicate ::
      ColumnPredicate
   -> Map.Map T.Text ColumnPredicate
@@ -198,7 +265,8 @@ upsertColumnPredicate p =
          { columnType = columnType oldV <|> columnType newV
          , isPrimary = isPrimary oldV <|> isPrimary newV
          , columnConstraint = columnConstraint oldV ++ columnConstraint newV
-         , existsInDB = existsInDB oldV || existsInDB newV
+         , columnExistsInDB = columnExistsInDB oldV || columnExistsInDB newV
+         , columnDefault = columnDefault oldV <|> columnDefault newV
          })
     (columnName p)
     p
@@ -225,3 +293,10 @@ modifyCheckedEntitySchema modSchema =
                tblChk
                fldChk)
             predicate))
+
+yesNoToBool :: String -> Bool
+yesNoToBool str =
+  case toUpper <$> str of
+    "YES" -> True
+    "NO" -> False
+    _ -> False

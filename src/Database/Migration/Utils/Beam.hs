@@ -2,9 +2,9 @@ module Database.Migration.Utils.Beam where
 
 import Control.Applicative ((<|>))
 import qualified Data.Aeson as A
+import Data.Char (toUpper)
 import qualified Data.Foldable as DF
 import Data.Functor.Identity (Identity(..))
-import qualified Data.Map.Strict as Map
 import Data.Monoid (Endo(Endo))
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as DTE
@@ -14,12 +14,12 @@ import qualified Database.Beam.Migrate.Types as BM
 import qualified Database.Beam.Postgres.Syntax as BP
 import qualified Database.Beam.Schema.Tables as BT
 
-import Data.Char (toUpper)
 import Database.Migration.Predicate
   ( PgHasSequence(..)
   , TableColumnHasDefault(..)
   )
 import Database.Migration.Types
+import qualified Database.Migration.Types.LinkedHashMap as LHM
 import Database.Migration.Utils.Common
 import Database.Migration.Utils.Parser
 
@@ -39,7 +39,7 @@ columnTypeToSqlType Boolean = "boolean"
 columnTypeToSqlType JSON = "json"
 columnTypeToSqlType Double = "double"
 columnTypeToSqlType (Bytea _) = "bytea"
-columnTypeToSqlType (Enum enum) = "\"" <> enum <> "\""
+columnTypeToSqlType (Enum enum) = quote enum
 columnTypeToSqlType BigInt = "bigint"
 columnTypeToSqlType (Timestamp TimestampTypeInfo {timezone}) =
   "timestamp"
@@ -74,7 +74,8 @@ mkTableName (BM.QualifiedName schema tableName) =
 {-
  Groups predicates by table/enum name
 -}
-groupPredicates :: [BM.SomeDatabasePredicate] -> Map.Map T.Text DBPredicate
+groupPredicates ::
+     [BM.SomeDatabasePredicate] -> LHM.LinkedHashMap T.Text DBPredicate
 groupPredicates =
   DF.foldl'
     (\acc predicate@(BM.SomeDatabasePredicate p) ->
@@ -88,15 +89,15 @@ groupPredicates =
          "PgHasSequence" -> groupSequencePredicate predicate acc
          "TableColumnHasDefault" -> groupColumnDefaultPredicate predicate acc
          _ -> acc)
-    Map.empty
+    LHM.empty
 
 groupTablePredicate ::
      BM.SomeDatabasePredicate
-  -> Map.Map T.Text DBPredicate
-  -> Map.Map T.Text DBPredicate
+  -> LHM.LinkedHashMap T.Text DBPredicate
+  -> LHM.LinkedHashMap T.Text DBPredicate
 groupTablePredicate predicate acc =
   let TableInfo tableInfo = parseTableExistPredicate predicate
-   in Map.insertWith
+   in LHM.insertWith
         (\newV oldV ->
            case oldV of
              DBHasTable (TablePredicate _ preds pKey) ->
@@ -105,18 +106,18 @@ groupTablePredicate predicate acc =
                DBHasTable (TablePredicate (TableInfo tableInfo) preds Nothing)
              _ignore -> newV)
         (mkTableName tableInfo)
-        (DBHasTable (TablePredicate (TableInfo tableInfo) mempty Nothing))
+        (DBHasTable (TablePredicate (TableInfo tableInfo) LHM.empty Nothing))
         acc
 
 groupColumnPredicate ::
      BM.SomeDatabasePredicate
-  -> Map.Map T.Text DBPredicate
-  -> Map.Map T.Text DBPredicate
+  -> LHM.LinkedHashMap T.Text DBPredicate
+  -> LHM.LinkedHashMap T.Text DBPredicate
 groupColumnPredicate predicate acc = do
   let TableHasColumnInfo {..} = parseTableHasColumnPredicate predicate
       columnPredicate =
         ColumnPredicate _column _table (Just _type) [] Nothing Nothing False
-   in Map.insertWith
+   in LHM.insertWith
         (\newV oldV ->
            case oldV of
              DBHasTable (TablePredicate tableInfo preds pKey) ->
@@ -129,13 +130,13 @@ groupColumnPredicate predicate acc = do
                DBTableHasColumns (upsertColumnPredicate columnPredicate preds)
              _ignore -> newV)
         (mkTableName _table)
-        (DBTableHasColumns $ Map.singleton _column columnPredicate)
+        (DBTableHasColumns $ LHM.singleton _column columnPredicate)
         acc
 
 groupConstraintPredicate ::
      BM.SomeDatabasePredicate
-  -> Map.Map T.Text DBPredicate
-  -> Map.Map T.Text DBPredicate
+  -> LHM.LinkedHashMap T.Text DBPredicate
+  -> LHM.LinkedHashMap T.Text DBPredicate
 groupConstraintPredicate predicate acc = do
   let constraintInfo@ColumnConstraintInfo {_table, _column} =
         parseTableColumnConstraintPredicate predicate
@@ -148,7 +149,7 @@ groupConstraintPredicate predicate acc = do
           Nothing
           Nothing
           False
-   in Map.insertWith
+   in LHM.insertWith
         (\newV oldV ->
            case oldV of
              DBHasTable (TablePredicate tableInfo preds pKey) ->
@@ -161,13 +162,13 @@ groupConstraintPredicate predicate acc = do
                DBTableHasColumns $ upsertColumnPredicate columnPredicate preds
              _ignore -> newV)
         (mkTableName _table)
-        (DBTableHasColumns $ Map.singleton _column columnPredicate)
+        (DBTableHasColumns $ LHM.singleton _column columnPredicate)
         acc
 
 groupPrimaryKeyPredicate ::
      BM.SomeDatabasePredicate
-  -> Map.Map T.Text DBPredicate
-  -> Map.Map T.Text DBPredicate
+  -> LHM.LinkedHashMap T.Text DBPredicate
+  -> LHM.LinkedHashMap T.Text DBPredicate
 groupPrimaryKeyPredicate predicate acc = do
   let pKeyInfo@(PrimaryKeyInfo table columns) =
         parseTableHasPrimaryKeyPredicate predicate
@@ -176,7 +177,7 @@ groupPrimaryKeyPredicate predicate acc = do
         [c] ->
           let columnPredicate =
                 ColumnPredicate c table Nothing [] (Just pKeyInfo) Nothing False
-           in Map.insertWith
+           in LHM.insertWith
                 (\newV oldV ->
                    case oldV of
                      DBHasTable (TablePredicate tableInfo preds _) ->
@@ -190,10 +191,10 @@ groupPrimaryKeyPredicate predicate acc = do
                          (upsertColumnPredicate columnPredicate preds)
                      _ignore -> newV)
                 (mkTableName table)
-                (DBTableHasColumns (Map.singleton c columnPredicate))
+                (DBTableHasColumns (LHM.singleton c columnPredicate))
                 acc
         _cs ->
-          Map.insertWith
+          LHM.insertWith
             (\newV oldV ->
                case oldV of
                  DBHasTable (TablePredicate tableInfo preds _) ->
@@ -201,32 +202,32 @@ groupPrimaryKeyPredicate predicate acc = do
                  _ignore -> newV)
             (mkTableName table)
             (DBHasTable
-               (TablePredicate (TableInfo table) mempty (Just pKeyInfo)))
+               (TablePredicate (TableInfo table) LHM.empty (Just pKeyInfo)))
             acc
 
 groupEnumPredicate ::
      BM.SomeDatabasePredicate
-  -> Map.Map T.Text DBPredicate
-  -> Map.Map T.Text DBPredicate
+  -> LHM.LinkedHashMap T.Text DBPredicate
+  -> LHM.LinkedHashMap T.Text DBPredicate
 groupEnumPredicate predicate acc = do
   let enumInfo@EnumInfo {name} = parsePgHasEnum predicate
-   in Map.insert name (DBHasEnum $ EnumPredicate enumInfo []) acc
+   in LHM.insert name (DBHasEnum $ EnumPredicate enumInfo []) acc
 
 groupSequencePredicate ::
      BM.SomeDatabasePredicate
-  -> Map.Map T.Text DBPredicate
-  -> Map.Map T.Text DBPredicate
+  -> LHM.LinkedHashMap T.Text DBPredicate
+  -> LHM.LinkedHashMap T.Text DBPredicate
 groupSequencePredicate predicate acc = do
   let sequencePredicate@PgHasSequence {seqName} = parsePgHasSequence predicate
-   in Map.insert
+   in LHM.insert
         (mkTableName seqName)
         (DBHasSequence $ SequencePredicate sequencePredicate Nothing)
         acc
 
 groupColumnDefaultPredicate ::
      BM.SomeDatabasePredicate
-  -> Map.Map T.Text DBPredicate
-  -> Map.Map T.Text DBPredicate
+  -> LHM.LinkedHashMap T.Text DBPredicate
+  -> LHM.LinkedHashMap T.Text DBPredicate
 groupColumnDefaultPredicate predicate acc = do
   let TableColumnHasDefault {..} = parseTableHasColumnDefault predicate
       columnPredicate =
@@ -238,7 +239,7 @@ groupColumnDefaultPredicate predicate acc = do
           Nothing
           (Just defaultValue)
           False
-   in Map.insertWith
+   in LHM.insertWith
         (\newV oldV ->
            case oldV of
              DBHasTable (TablePredicate tableInfo preds pKey) ->
@@ -251,15 +252,15 @@ groupColumnDefaultPredicate predicate acc = do
                DBTableHasColumns $ upsertColumnPredicate columnPredicate preds
              _ignore -> newV)
         (mkTableName table)
-        (DBTableHasColumns $ Map.singleton colName columnPredicate)
+        (DBTableHasColumns $ LHM.singleton colName columnPredicate)
         acc
 
 upsertColumnPredicate ::
      ColumnPredicate
-  -> Map.Map T.Text ColumnPredicate
-  -> Map.Map T.Text ColumnPredicate
+  -> LHM.LinkedHashMap T.Text ColumnPredicate
+  -> LHM.LinkedHashMap T.Text ColumnPredicate
 upsertColumnPredicate p =
-  Map.insertWith
+  LHM.insertWith
     (\newV oldV ->
        oldV
          { columnType = columnType oldV <|> columnType newV

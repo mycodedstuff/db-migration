@@ -7,8 +7,8 @@ import qualified Database.Beam as B
 import qualified Database.Beam.Migrate as BM
 import GHC.Generics (Generic)
 
-import Database.Migration.Utils.Beam
 import Database.Migration.Types.Sequence
+import Database.Migration.Utils.Beam
 
 data ConfigurationT f = ConfigurationT
   { _id :: !(B.C f (AutoIncrement Int32))

@@ -3,17 +3,17 @@
 module Database.Migration.Backend.Postgres where
 
 import qualified Data.Foldable as DF
-import qualified Data.Map.Strict as Map
 import Data.Maybe (isJust)
 import qualified Data.Text as T
 import qualified Database.Beam.Migrate.Types as BM
 import qualified Database.Beam.Postgres as BP
-
 import Data.Scientific (FPFormat(Fixed), formatScientific)
+
 import Database.Migration.Predicate
 import Database.Migration.Types
 import Database.Migration.Utils.Beam
 import Database.Migration.Utils.Common
+import qualified Database.Migration.Types.LinkedHashMap as LHM
 
 mkConstraintTypeToSqlSyntax :: ColumnConstraintInfo -> T.Text
 mkConstraintTypeToSqlSyntax ColumnConstraintInfo {..} =
@@ -33,7 +33,7 @@ mkColumnForCreateTable (ColumnPredicate _ _ Nothing _ _ _ _) =
 instance RenderPredicate BP.Postgres TablePredicate where
   mutatePredicate _ _ p = return p
   renderQuery (TablePredicate (TableInfo tableName) columnPredicates maybePKey) =
-    if Map.null columnPredicates
+    if LHM.null columnPredicates
       then case maybePKey of
              Just PrimaryKeyInfo {..} ->
                [ "alter table "
@@ -51,7 +51,7 @@ instance RenderPredicate BP.Postgres TablePredicate where
                <> " ("
                <> T.intercalate
                     ", "
-                    (mkColumnForCreateTable <$> Map.elems columnPredicates)
+                    (mkColumnForCreateTable <$> LHM.elems columnPredicates)
                <> maybe
                     ""
                     (\(PrimaryKeyInfo _ pColumns) ->
@@ -70,9 +70,9 @@ mkAlterSuffix columnName ConstraintInfo {..} =
 instance RenderPredicate BP.Postgres ColumnPredicate where
   mutatePredicate _ dbPreds p@ColumnPredicate {columnName, columnTable} = do
     let columnExists =
-          case Map.lookup (mkTableName columnTable) dbPreds of
+          case LHM.lookup (mkTableName columnTable) dbPreds of
             Just (DBHasTable (TablePredicate _ colMap _)) ->
-              isJust $ Map.lookup columnName colMap
+              isJust $ LHM.lookup columnName colMap
             _ignore -> False
     return $ p {columnExistsInDB = columnExists}
   renderQuery p@(ColumnPredicate columnName tableName maybeType constraints maybePKey mDefault existsInDB) =
@@ -170,7 +170,7 @@ instance RenderPredicate BP.Postgres EnumPredicate where
   mutatePredicate _ dbPreds p@EnumPredicate {enumInfo} = do
     let EnumInfo {name} = enumInfo
         enumValuesInDB =
-          case Map.lookup name dbPreds of
+          case LHM.lookup name dbPreds of
             Just (DBHasEnum (EnumPredicate _ dbValues)) -> dbValues
             _ignore -> []
     return $ p {enumValuesInDB = enumValuesInDB}
@@ -214,7 +214,7 @@ instance RenderPredicate BP.Postgres SequencePredicate where
   mutatePredicate _ dbPreds p@SequencePredicate {predicate} = do
     let PgHasSequence {seqName} = predicate
         sequenceExists =
-          case Map.lookup (mkTableName seqName) dbPreds of
+          case LHM.lookup (mkTableName seqName) dbPreds of
             Just (DBHasSequence (SequencePredicate seqP _)) -> Just seqP
             _ignore -> Nothing
     return $ p {sequenceInDB = sequenceExists}
@@ -223,7 +223,7 @@ instance RenderPredicate BP.Postgres DBPredicate where
   renderQuery =
     \case
       DBHasTable p -> renderQuery @BP.Postgres p
-      DBTableHasColumns p -> concat $ renderQuery @BP.Postgres <$> p
+      DBTableHasColumns p -> concat $ renderQuery @BP.Postgres <$> LHM.elems p
       DBHasEnum p -> renderQuery @BP.Postgres p
       DBHasSequence p -> renderQuery @BP.Postgres p
   mutatePredicate conn predMap =

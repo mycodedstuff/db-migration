@@ -60,9 +60,7 @@ instance BM.HasDefaultSqlDataType BP.Postgres IssueStatus where
     [ BM.FieldCheck
         (\_ _ ->
            BM.p
-             (BP.PgHasEnum
-                "enum_Issues_status"
-                ["RAISED", "ACTIVE", "RESOLVED"]))
+             (BP.PgHasEnum "enum_Issues_status" ["RAISED", "ACTIVE", "RESOLVED"]))
     ] -- Try Generics to add constructor names
 
 instance B.Table IssueT where

@@ -4,8 +4,7 @@ module Database.Migration where
 
 import qualified Data.Foldable as DF
 import qualified Data.HashSet as HS
-import Data.List (sort)
-import qualified Data.Map as Map
+import Data.List (elemIndex, sort, sortBy)
 import Data.Maybe (fromMaybe, isJust)
 import Data.String (fromString)
 import qualified Data.Text as DT
@@ -19,6 +18,7 @@ import Text.Read (readMaybe)
 import Database.Migration.Backend.Postgres ()
 import Database.Migration.Predicate (PgHasSequence(PgHasSequence))
 import Database.Migration.Types
+import qualified Database.Migration.Types.LinkedHashMap as LHM
 import Database.Migration.Utils.Beam
 
 schemaDiff ::
@@ -61,7 +61,12 @@ schemaDiff conn schema checkedDB = do
   if HS.null diff
     then return $ Right Sync
     else do
-      let dbPredicates = sort $ Map.elems $ groupPredicates $ HS.toList diff
+      let dbPredicates =
+            sort
+              $ LHM.elems
+              $ groupPredicates
+              $ sortArrUsingRefArr haskellConstraints
+              $ HS.toList diff
       Right . Diff
         <$> DF.foldlM
               (\acc p ->
@@ -69,3 +74,10 @@ schemaDiff conn schema checkedDB = do
                    <$> mutatePredicate @BP.Postgres conn groupedDBChecks p)
               []
               dbPredicates
+
+sortArrUsingRefArr :: Eq a => [a] -> [a] -> [a]
+sortArrUsingRefArr refArr =
+  sortBy
+    (\a b ->
+       fromMaybe maxBound (elemIndex a refArr)
+         `compare` fromMaybe maxBound (elemIndex b refArr))

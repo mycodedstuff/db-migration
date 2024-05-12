@@ -9,6 +9,7 @@ import qualified Database.Beam.Postgres as BP
 import GHC.Generics
 
 import Database.Migration.Predicate
+import qualified Database.Migration.Types.LinkedHashMap as LHM
 
 data DBDiff
   = Sync
@@ -17,7 +18,8 @@ data DBDiff
 
 class RenderPredicate be p where
   renderQuery :: p -> [T.Text]
-  mutatePredicate :: BP.Connection -> Map.Map T.Text DBPredicate -> p -> IO p
+  mutatePredicate ::
+       BP.Connection -> LHM.LinkedHashMap T.Text DBPredicate -> p -> IO p
 
 type PredicateInfo a = Map.Map T.Text a
 
@@ -189,7 +191,7 @@ data EnumInfo = EnumInfo
 data TablePredicate =
   TablePredicate
     !TableInfo
-    !(Map.Map T.Text ColumnPredicate)
+    !(LHM.LinkedHashMap T.Text ColumnPredicate)
     !(Maybe PrimaryKeyInfo)
   deriving (Generic, Show, Eq)
 
@@ -204,7 +206,7 @@ data DBPredicate
   = DBHasEnum !EnumPredicate
   | DBHasSequence !SequencePredicate
   | DBHasTable !TablePredicate
-  | DBTableHasColumns !(Map.Map T.Text ColumnPredicate)
+  | DBTableHasColumns !(LHM.LinkedHashMap T.Text ColumnPredicate)
   deriving (Generic, Show, Eq)
 
 instance Ord DBPredicate where

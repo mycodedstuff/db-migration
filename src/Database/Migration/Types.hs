@@ -1,13 +1,13 @@
 module Database.Migration.Types where
 
 import qualified Data.Aeson as A
-import qualified Data.Aeson.Types as A
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as T
 import qualified Database.Beam.Migrate as BM
 import qualified Database.Beam.Postgres as BP
 import GHC.Generics
 
+import qualified Data.HashMap.Strict as HM
 import Database.Migration.Predicate
 import qualified Database.Migration.Types.LinkedHashMap as LHM
 
@@ -52,7 +52,11 @@ data CustomType
       { mod :: !Integer
       , oid :: !Integer
       }
-  deriving (Generic, Show, Eq, A.FromJSON)
+  deriving (Generic, Show, Eq)
+
+instance A.FromJSON CustomType where
+  parseJSON =
+    A.genericParseJSON $ A.defaultOptions {A.sumEncoding = A.UntaggedValue}
 
 data TypeInfo = TypeInfo
   { be_specific :: !T.Text
@@ -88,34 +92,35 @@ data ColumnInfo
   | Boolean
   | JSON
   | Double
-  | Bytea !TypeInfo
+  | Bytea
   | Enum !T.Text
   | BigInt
   | PgText
   | JSONB
   | Arr !ColumnInfo
+  | Blob
   deriving (Generic, Show, Eq)
 
 instance A.FromJSON ColumnInfo where
   parseJSON v =
     case v of
-      A.String "int" -> return Integer
-      A.String "boolean" -> return Boolean
-      A.String "double" -> return Double
-      A.String "bigint" -> return BigInt
-      val ->
-        case A.parse
-               (A.genericParseJSON
-                  $ A.defaultOptions {A.sumEncoding = A.UntaggedValue})
-               val of
-          A.Success cInfo -> return cInfo
-          A.Error _ ->
-            case A.fromJSON val of
-              A.Error err -> fail $ "Expected TypeInfo: " ++ show err
-              A.Success (result :: TypeInfo) ->
-                case be_data result of
+      "int" -> return Integer
+      "boolean" -> return Boolean
+      "double" -> return Double
+      "bigint" -> return BigInt
+      "blob" -> return Blob
+      val -> do
+        case val of
+          (A.Object hm) ->
+            case HM.toList hm of
+              [("varchar", value)] -> VarChar <$> A.parseJSON value
+              [("timestamp", value)] -> Timestamp <$> A.parseJSON value
+              [("numeric", value)] -> Numeric <$> A.parseJSON value
+              [("char", value)] -> Char <$> A.parseJSON value
+              [("be-specific", _), ("be-data", value)] ->
+                case value of
                   "json" -> return JSON
-                  "bytea" -> return $ Bytea result
+                  "bytea" -> return Bytea
                   "text" -> return PgText
                   "jsonb" -> return JSONB
                   rest ->
@@ -132,6 +137,8 @@ instance A.FromJSON ColumnInfo where
                                      $ CharTypeInfo (Just _mod) Nothing
                               else fail $ "Unhandled oid " ++ show val
                           _unknown -> fail $ "Unhandled type " ++ show val
+              _unhandled -> fail $ "Couldn't parse object " ++ show _unhandled
+          _unknown -> fail $ "Expected Object got " ++ show _unknown
 
 data TableHasColumnInfo = TableHasColumnInfo
   { _table :: !BM.QualifiedName
@@ -207,15 +214,20 @@ data DBPredicate
   | DBHasSequence !SequencePredicate
   | DBHasTable !TablePredicate
   | DBTableHasColumns !(LHM.LinkedHashMap T.Text ColumnPredicate)
+  | DBHasSchema !PgHasSchema
   deriving (Generic, Show, Eq)
 
 instance Ord DBPredicate where
   compare p1 p2 =
     case (p1, p2) of
+      (DBHasSchema _, _) -> LT
+      (DBHasEnum _, DBHasSchema _) -> GT
       (DBHasEnum _, _) -> LT
+      (DBHasSequence _, DBHasSchema _) -> GT
       (DBHasSequence _, DBHasEnum _) -> GT
       (DBHasSequence _, DBHasTable _) -> LT
       (DBHasSequence _, DBTableHasColumns _) -> LT
+      (DBHasTable _, DBHasSchema _) -> GT
       (DBHasTable _, DBHasEnum _) -> GT
       (DBHasTable _, DBHasSequence _) -> GT
       (DBHasTable _, DBTableHasColumns _) -> LT

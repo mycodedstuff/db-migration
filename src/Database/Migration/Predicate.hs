@@ -124,3 +124,17 @@ instance BM.DatabasePredicate TableColumnHasDefault where
                ]
       ]
   predicateCascadesDropOn _ _ = False -- Check for cascades
+
+newtype PgHasSchema = PgHasSchema
+  { schemaName :: T.Text
+  } deriving (Generic, Show, Eq)
+    deriving anyclass (A.FromJSON)
+
+instance Hashable PgHasSchema
+
+instance BM.DatabasePredicate PgHasSchema where
+  englishDescription (PgHasSchema schemaName) =
+    "Postgres must have schema " ++ T.unpack schemaName
+  predicateSpecificity _ = BM.PredicateSpecificityOnlyBackend "Postgres"
+  serializePredicate (PgHasSchema schemaName) =
+    object ["has-postgres-schema" .= object ["schemaName" .= schemaName]]

@@ -2,7 +2,7 @@ module Database.Migration.Utils.Beam where
 
 import Control.Applicative ((<|>))
 import qualified Data.Aeson as A
-import Data.Char (toUpper)
+import Data.Char (isUpper, toUpper)
 import qualified Data.Foldable as DF
 import Data.Functor.Identity (Identity(..))
 import Data.Monoid (Endo(Endo))
@@ -13,9 +13,12 @@ import qualified Database.Beam as B
 import qualified Database.Beam.Migrate.Types as BM
 import qualified Database.Beam.Postgres.Syntax as BP
 import qualified Database.Beam.Schema.Tables as BT
+import Text.Read (readMaybe)
 
 import Database.Migration.Predicate
-  ( PgHasSequence(..)
+  ( ColumnDefault(..)
+  , PgHasSchema(..)
+  , PgHasSequence(..)
   , TableColumnHasDefault(..)
   )
 import Database.Migration.Types
@@ -38,7 +41,7 @@ columnTypeToSqlType (Numeric info) = "numeric" <> mkNumericPrec info
 columnTypeToSqlType Boolean = "boolean"
 columnTypeToSqlType JSON = "json"
 columnTypeToSqlType Double = "double"
-columnTypeToSqlType (Bytea _) = "bytea"
+columnTypeToSqlType Bytea = "bytea"
 columnTypeToSqlType (Enum enum) = quote enum
 columnTypeToSqlType BigInt = "bigint"
 columnTypeToSqlType (Timestamp TimestampTypeInfo {timezone}) =
@@ -49,6 +52,7 @@ columnTypeToSqlType (Timestamp TimestampTypeInfo {timezone}) =
 columnTypeToSqlType PgText = "text"
 columnTypeToSqlType JSONB = "jsonb"
 columnTypeToSqlType (Arr c) = columnTypeToSqlType c <> "[]"
+columnTypeToSqlType Blob = "blob"
 
 -- Handle collation
 mkVarcharPrec :: CharTypeInfo -> T.Text
@@ -69,7 +73,15 @@ mkNumericPrec (NumericTypeInfo maybePrec maybeDecimal) =
 
 mkTableName :: BM.QualifiedName -> T.Text
 mkTableName (BM.QualifiedName schema tableName) =
-  maybe "public" quote schema <> "." <> quote tableName
+  maybe
+    "public"
+    (\s ->
+       if T.any isUpper s
+         then quote s
+         else s)
+    schema
+    <> "."
+    <> quote tableName
 
 {-
  Groups predicates by table/enum name
@@ -88,6 +100,7 @@ groupPredicates =
          "PgHasEnum" -> groupEnumPredicate predicate acc
          "PgHasSequence" -> groupSequencePredicate predicate acc
          "TableColumnHasDefault" -> groupColumnDefaultPredicate predicate acc
+         "PgHasSchema" -> groupPgHasSchemaPredicate predicate acc
          _ -> acc)
     LHM.empty
 
@@ -255,6 +268,14 @@ groupColumnDefaultPredicate predicate acc = do
         (DBTableHasColumns $ LHM.singleton colName columnPredicate)
         acc
 
+groupPgHasSchemaPredicate ::
+     BM.SomeDatabasePredicate
+  -> LHM.LinkedHashMap T.Text DBPredicate
+  -> LHM.LinkedHashMap T.Text DBPredicate
+groupPgHasSchemaPredicate predicate acc = do
+  let schemaPredicate@PgHasSchema {schemaName} = parsePgHasSchema predicate
+   in LHM.insert schemaName (DBHasSchema schemaPredicate) acc
+
 upsertColumnPredicate ::
      ColumnPredicate
   -> LHM.LinkedHashMap T.Text ColumnPredicate
@@ -301,3 +322,12 @@ yesNoToBool str =
     "YES" -> True
     "NO" -> False
     _ -> False
+
+parseColumnDefault :: T.Text -> ColumnDefault
+parseColumnDefault str =
+  case readMaybe $ T.unpack str of
+    Just num -> LiteralInt (Just $ T.length $ T.takeWhile (== '.') str) num
+    Nothing ->
+      if T.isPrefixOf "nextval" str
+        then Sequence str
+        else LiteralStr str

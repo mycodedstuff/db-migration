@@ -14,6 +14,9 @@ library
   exposed-modules:
       Database.Migration
       Database.Migration.Backend.Postgres
+      Database.Migration.Backend.Postgres.Checks
+      Database.Migration.Backend.Postgres.Queries
+      Database.Migration.Backend.Postgres.Render
       Database.Migration.Predicate
       Database.Migration.Types
       Database.Migration.Types.LinkedHashMap
@@ -43,6 +46,7 @@ library
       FlexibleContexts
       AllowAmbiguousTypes
       GeneralizedNewtypeDeriving
+      ViewPatterns
   ghc-options: -Wall -O2
   build-depends:
       aeson
@@ -88,6 +92,7 @@ executable generate-dll
       FlexibleContexts
       AllowAmbiguousTypes
       GeneralizedNewtypeDeriving
+      ViewPatterns
   ghc-options: -Wall -O2 -main-is GenerateDDL
   build-depends:
       aeson

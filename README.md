@@ -33,9 +33,7 @@ create table if not exists public."Issues" ("createdAt" timestamp with time zone
 
 #### TODOs
 
-1. Support for default values
-2. Support for sequences
-3. Support for partitioned tables (manual and db supported)
+1. Support for partitioned tables (manual and db supported)
 
 #### Explore
 

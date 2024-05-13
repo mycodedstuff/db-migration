@@ -81,3 +81,14 @@ parseTableHasColumnDefault (BM.SomeDatabasePredicate p) =
         Nothing ->
           error
             $ "Couldn't find has-column-default key in " ++ show predicateObj
+
+parsePgHasSchema :: BM.SomeDatabasePredicate -> PgHasSchema
+parsePgHasSchema (BM.SomeDatabasePredicate p) =
+  case A.fromJSON $ BM.serializePredicate p of
+    A.Error err -> error $ "Couldn't parser predicate PgHasSchema " ++ show err
+    A.Success predicateObj ->
+      case HM.lookup ("has-postgres-schema" :: String) predicateObj of
+        Just result -> result
+        Nothing ->
+          error
+            $ "Couldn't find has-postgres-schema key in " ++ show predicateObj

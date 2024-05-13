@@ -53,6 +53,7 @@ columnTypeToSqlType PgText = "text"
 columnTypeToSqlType JSONB = "jsonb"
 columnTypeToSqlType (Arr c) = columnTypeToSqlType c <> "[]"
 columnTypeToSqlType Blob = "blob"
+columnTypeToSqlType SmallInt = "smallint"
 
 -- Handle collation
 mkVarcharPrec :: CharTypeInfo -> T.Text

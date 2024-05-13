@@ -1,10 +1,7 @@
 module Database.Migration.Types.Sequence where
 
 import qualified Data.Aeson as A
-import Data.Bits ((.|.), shiftL)
-import qualified Data.ByteString as BS
 import Data.Int (Int16, Int32, Int64)
-import qualified Data.List as L
 import Data.Proxy
 import qualified Data.Text as T
 import Data.Typeable (Typeable, typeRep)
@@ -18,12 +15,7 @@ import qualified Database.PostgreSQL.Simple.TypeInfo.Static as Pg
 
 import Database.Migration.Predicate
 import Database.Migration.Utils.Beam (mkTableName)
-
--- | Decode a big endian Integer from a bytestring
-bsToInteger :: BS.ByteString -> Integer
-bsToInteger = L.foldl' f 0 . BS.unpack
-  where
-    f n w = toInteger w .|. shiftL n 8
+import Database.Migration.Utils.Common
 
 renderSequenceDefault :: T.Text -> T.Text
 renderSequenceDefault str = "nextval('" <> str <> "'::regclass)"
@@ -57,28 +49,37 @@ instance (Integral a, Bounded a, BA.HasSqlValueSyntax BP.PgValueSyntax a) =>
 
 instance (Bounded a, Integral a) =>
          BM.HasDefaultSqlDataType BP.Postgres (AutoIncrement a) where
-  defaultSqlDataType _ _ _ = BA.intType
+  defaultSqlDataType _ _ _ = snd $ resolveSequenceType $ toInteger $ maxBound @a
   defaultSqlDataTypeConstraints _ _ _ =
-    [ BM.FieldCheck
-        (\tblName colName ->
-           BM.p
-             (PgHasSequence
-                (mkSequenceName tblName colName) -- This assumes sequence is defined in same schema as table
-                (1, toInteger (maxBound @a))
-                1
-                1
-                False))
-    , BM.FieldCheck
-        (\tableName colName ->
-           BM.p
-             (TableColumnHasDefault
-                tableName
-                colName
-                (Sequence
-                   $ renderSequenceDefault
-                   $ mkTableName
-                   $ mkSequenceName tableName colName)))
-    ]
+    let upperBound = toInteger $ maxBound @a
+     in [ BM.FieldCheck
+            (\tblName colName ->
+               BM.p
+                 (PgHasSequence
+                    (mkSequenceName tblName colName) -- This assumes sequence is defined in same schema as table
+                    (1, upperBound)
+                    1
+                    1
+                    False
+                    (fst $ resolveSequenceType upperBound)))
+        , BM.FieldCheck
+            (\tableName colName ->
+               BM.p
+                 (TableColumnHasDefault
+                    tableName
+                    colName
+                    (Sequence
+                       $ renderSequenceDefault
+                       $ mkTableName
+                       $ mkSequenceName tableName colName)))
+        ]
+
+resolveSequenceType ::
+     Integer -> (SequenceTypes, BA.BeamSqlBackendDataTypeSyntax BP.Postgres)
+resolveSequenceType upperBound
+  | upperBound <= toInteger (maxBound @Int16) = (SmallInt, BA.smallIntType)
+  | upperBound <= toInteger (maxBound @Int32) = (Int, BA.intType)
+  | otherwise = (BigInt, BA.bigIntType)
 
 mkSequenceName :: BM.QualifiedName -> T.Text -> BM.QualifiedName
 mkSequenceName (BM.QualifiedName mSchema tableName) colName =

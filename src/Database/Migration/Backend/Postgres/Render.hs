@@ -9,6 +9,7 @@ import qualified Data.Text as T
 import qualified Database.Beam.Migrate.Types as BM
 import qualified Database.Beam.Postgres as BP
 
+import Data.Char (toLower)
 import Database.Migration.Predicate
 import Database.Migration.Types
 import qualified Database.Migration.Types.LinkedHashMap as LHM
@@ -193,19 +194,23 @@ instance RenderPredicate BP.Postgres SequencePredicate where
               ]
                 ++ ["CYCLE" | seqCycle]
         ]
-      Just (PgHasSequence _ range offset step wrap) ->
+      Just (PgHasSequence _ range offset step wrap _type) ->
         (<> ";")
           . T.intercalate " "
           . (["alter sequence if exists", mkTableName seqName] ++)
-          <$> [ ["increment by " <> T.pack (show seqStep) | step /= seqStep]
-              , [ "minvalue " <> T.pack (show $ fst seqRange)
-                | fst range /= fst seqRange
-                ]
-              , [ "maxvalue " <> T.pack (show $ snd seqRange)
-                | snd range /= snd seqRange
-                ]
-              , ["start " <> T.pack (show seqOffset) | offset /= seqOffset]
+          <$> [ ["as " <> T.pack (toLower <$> show seqType)]
+              | _type /= seqType
               ]
+                ++ [ ["increment by " <> T.pack (show seqStep)]
+                   | step /= seqStep
+                   ]
+                ++ [ ["minvalue " <> T.pack (show $ fst seqRange)]
+                   | fst range /= fst seqRange
+                   ]
+                ++ [ ["maxvalue " <> T.pack (show $ snd seqRange)]
+                   | snd range /= snd seqRange
+                   ]
+                ++ [["start " <> T.pack (show seqOffset)] | offset /= seqOffset]
                 ++ [ [ if seqCycle
                          then "cycle"
                          else "no cycle"

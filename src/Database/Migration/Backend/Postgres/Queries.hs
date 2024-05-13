@@ -15,13 +15,13 @@ getCurrentDatabase conn =
 getSequencesFromPg ::
      BP.Connection
   -> Maybe T.Text
-  -> IO [(String, String, String, String, String, String, String)]
+  -> IO [(String, String, String, String, String, String, String, String)]
 getSequencesFromPg conn mSchema =
   Pg.query_ conn
     $ fromString
     $ unlines
         [ "select sequence_schema, sequence_name, minimum_value,"
-        , "maximum_value, start_value, increment, cycle_option"
+        , "maximum_value, start_value, increment, cycle_option, data_type"
         , "from information_schema.sequences"
         , "where sequence_schema = '" ++ maybe "public" T.unpack mSchema ++ "';"
         ]

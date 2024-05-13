@@ -1,14 +1,14 @@
 module Database.Migration.Types where
 
 import qualified Data.Aeson as A
+import qualified Data.HashMap.Strict as HM
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as T
 import qualified Database.Beam.Migrate as BM
 import qualified Database.Beam.Postgres as BP
 import GHC.Generics
 
-import qualified Data.HashMap.Strict as HM
-import Database.Migration.Predicate
+import qualified Database.Migration.Predicate as MP
 import qualified Database.Migration.Types.LinkedHashMap as LHM
 
 data DBDiff
@@ -95,6 +95,7 @@ data ColumnInfo
   | Bytea
   | Enum !T.Text
   | BigInt
+  | SmallInt
   | PgText
   | JSONB
   | Arr !ColumnInfo
@@ -109,6 +110,7 @@ instance A.FromJSON ColumnInfo where
       "double" -> return Double
       "bigint" -> return BigInt
       "blob" -> return Blob
+      "smallint" -> return SmallInt
       val -> do
         case val of
           (A.Object hm) ->
@@ -205,8 +207,8 @@ data TablePredicate =
 type ExistingEnumValues = [T.Text]
 
 data SequencePredicate = SequencePredicate
-  { predicate :: !PgHasSequence
-  , sequenceInDB :: !(Maybe PgHasSequence)
+  { predicate :: !MP.PgHasSequence
+  , sequenceInDB :: !(Maybe MP.PgHasSequence)
   } deriving (Generic, Show, Eq)
 
 data DBPredicate
@@ -214,7 +216,7 @@ data DBPredicate
   | DBHasSequence !SequencePredicate
   | DBHasTable !TablePredicate
   | DBTableHasColumns !(LHM.LinkedHashMap T.Text ColumnPredicate)
-  | DBHasSchema !PgHasSchema
+  | DBHasSchema !MP.PgHasSchema
   deriving (Generic, Show, Eq)
 
 instance Ord DBPredicate where
@@ -240,7 +242,7 @@ data ColumnPredicate = ColumnPredicate
   , columnType :: !(Maybe ColumnInfo)
   , columnConstraint :: ![ColumnConstraintInfo]
   , isPrimary :: !(Maybe PrimaryKeyInfo)
-  , columnDefault :: !(Maybe ColumnDefault)
+  , columnDefault :: !(Maybe MP.ColumnDefault)
   , columnExistsInDB :: !Bool
   } deriving (Generic, Show, Eq)
 

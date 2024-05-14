@@ -3,6 +3,7 @@ module Database.Migration.Utils.Common where
 import qualified Data.Aeson as A
 import Data.Bits (Bits((.|.), shiftL))
 import qualified Data.ByteString as BS
+import Data.Char (isUpper)
 import Data.List (elemIndex, sortBy)
 import qualified Data.List as L
 import Data.Maybe (fromMaybe)
@@ -11,6 +12,13 @@ import qualified Data.Text as T
 {-# INLINE quote #-}
 quote :: T.Text -> T.Text
 quote t = "\"" <> t <> "\""
+
+{-# INLINE quoteIfAnyUpper #-}
+quoteIfAnyUpper :: T.Text -> T.Text
+quoteIfAnyUpper t =
+  if T.any isUpper t
+    then quote t
+    else t
 
 {-# INLINE headMaybe #-}
 headMaybe :: [a] -> Maybe a

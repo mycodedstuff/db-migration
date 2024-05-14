@@ -2,7 +2,7 @@ module Database.Migration.Utils.Beam where
 
 import Control.Applicative ((<|>))
 import qualified Data.Aeson as A
-import Data.Char (isUpper, toUpper)
+import Data.Char (toUpper)
 import qualified Data.Foldable as DF
 import Data.Functor.Identity (Identity(..))
 import Data.Monoid (Endo(Endo))
@@ -74,15 +74,7 @@ mkNumericPrec (NumericTypeInfo maybePrec maybeDecimal) =
 
 mkTableName :: BM.QualifiedName -> T.Text
 mkTableName (BM.QualifiedName schema tableName) =
-  maybe
-    "public"
-    (\s ->
-       if T.any isUpper s
-         then quote s
-         else s)
-    schema
-    <> "."
-    <> quote tableName
+  maybe "" ((<> ".") . quoteIfAnyUpper) schema <> quoteIfAnyUpper tableName
 
 {-
  Groups predicates by table/enum name
@@ -297,7 +289,7 @@ upsertColumnPredicate p =
 constraintTypeToSqlSyntax :: ConstraintInfo -> T.Text -> T.Text
 constraintTypeToSqlSyntax ConstraintInfo {..} columnName =
   case constraint of
-    NOT_NULL -> "alter column " <> quote columnName <> " set not null"
+    NOT_NULL -> "alter column " <> quoteIfAnyUpper columnName <> " set not null"
 
 modifyCheckedEntitySchema ::
      BT.IsDatabaseEntity be (B.TableEntity tbl)

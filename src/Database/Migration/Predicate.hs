@@ -13,7 +13,7 @@ import GHC.Generics (Generic)
 
 data SequenceTypes
   = SmallInt
-  | Int
+  | Integer
   | BigInt
   deriving (Show, Eq, Generic, Hashable)
 

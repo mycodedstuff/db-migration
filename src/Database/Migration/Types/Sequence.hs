@@ -78,7 +78,7 @@ resolveSequenceType ::
      Integer -> (SequenceTypes, BA.BeamSqlBackendDataTypeSyntax BP.Postgres)
 resolveSequenceType upperBound
   | upperBound <= toInteger (maxBound @Int16) = (SmallInt, BA.smallIntType)
-  | upperBound <= toInteger (maxBound @Int32) = (Int, BA.intType)
+  | upperBound <= toInteger (maxBound @Int32) = (Integer, BA.intType)
   | otherwise = (BigInt, BA.bigIntType)
 
 mkSequenceName :: BM.QualifiedName -> T.Text -> BM.QualifiedName

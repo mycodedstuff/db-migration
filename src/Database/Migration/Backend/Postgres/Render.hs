@@ -24,7 +24,7 @@ mkConstraintTypeToSqlSyntax ColumnConstraintInfo {..} =
 mkColumnForCreateTable :: ColumnPredicate -> T.Text
 mkColumnForCreateTable (ColumnPredicate name _ (Just _type) constraints maybePKey mDefault _) =
   T.intercalate " "
-    $ [quote name, columnTypeToSqlType _type]
+    $ [quoteIfAnyUpper name, columnTypeToSqlType _type]
         ++ fmap mkConstraintTypeToSqlSyntax constraints
         ++ maybe [] (const ["primary key"]) maybePKey
         ++ maybe [] (\d -> ["default", mkDefault d]) mDefault
@@ -40,9 +40,9 @@ instance RenderPredicate BP.Postgres TablePredicate where
                [ "alter table "
                    <> mkTableName tableName
                    <> " add constraint "
-                   <> quote (mkPrimaryContraintName table)
+                   <> quoteIfAnyUpper (mkPrimaryContraintName table)
                    <> " primary key ("
-                   <> T.intercalate ", " (quote <$> columns)
+                   <> T.intercalate ", " (quoteIfAnyUpper <$> columns)
                    <> ");"
                ]
              Nothing ->
@@ -57,7 +57,7 @@ instance RenderPredicate BP.Postgres TablePredicate where
                     ""
                     (\(PrimaryKeyInfo _ pColumns) ->
                        "primary key ("
-                         <> T.intercalate ", " (quote <$> pColumns)
+                         <> T.intercalate ", " (quoteIfAnyUpper <$> pColumns)
                          <> ")")
                     maybePKey
                <> ");"
@@ -66,7 +66,8 @@ instance RenderPredicate BP.Postgres TablePredicate where
 mkAlterSuffix :: T.Text -> ConstraintInfo -> T.Text
 mkAlterSuffix columnName ConstraintInfo {..} =
   case constraint of
-    NOT_NULL -> "alter column " <> quote columnName <> " set not null;"
+    NOT_NULL ->
+      "alter column " <> quoteIfAnyUpper columnName <> " set not null;"
 
 instance RenderPredicate BP.Postgres ColumnPredicate where
   mutatePredicate _ dbPreds p@ColumnPredicate {columnName, columnTable} = do
@@ -84,7 +85,7 @@ instance RenderPredicate BP.Postgres ColumnPredicate where
                 [ "alter table "
                     <> mkTableName tableName
                     <> " alter column "
-                    <> quote columnName
+                    <> quoteIfAnyUpper columnName
                     <> " type "
                     <> columnTypeToSqlType _type
                     <> ";"
@@ -98,7 +99,7 @@ instance RenderPredicate BP.Postgres ColumnPredicate where
                          [ "alter table"
                          , mkTableName tableName
                          , "alter column"
-                         , quote columnName
+                         , quoteIfAnyUpper columnName
                          , "set default"
                          , mkDefault _default
                          ]
@@ -120,9 +121,9 @@ instance RenderPredicate BP.Postgres ColumnPredicate where
                      [ "alter table "
                          <> mkTableName table
                          <> " add constraint "
-                         <> quote (mkPrimaryContraintName table)
+                         <> quoteIfAnyUpper (mkPrimaryContraintName table)
                          <> " primary key ("
-                         <> T.intercalate ", " (quote <$> columns)
+                         <> T.intercalate ", " (quoteIfAnyUpper <$> columns)
                          <> ");"
                      ])
                   maybePKey
@@ -147,7 +148,7 @@ instance RenderPredicate BP.Postgres EnumPredicate where
   renderQuery (EnumPredicate (EnumInfo name enums) existValues) =
     if null existValues
       then [ "create type "
-               <> quote name
+               <> quoteIfAnyUpper name
                <> " as enum ('"
                <> T.intercalate "', '" enums
                <> "');"
@@ -163,7 +164,7 @@ instance RenderPredicate BP.Postgres EnumPredicate where
             in Prelude.map
                  (\val ->
                     "alter type "
-                      <> quote name
+                      <> quoteIfAnyUpper name
                       <> " add value if not exists '"
                       <> val
                       <> "';")
@@ -183,6 +184,8 @@ instance RenderPredicate BP.Postgres SequencePredicate where
         [ (<> ";") . T.intercalate " "
             $ [ "create sequence if not exists"
               , mkTableName seqName
+              , "as"
+              , T.pack (toLower <$> show seqType)
               , "increment by"
               , T.pack (show seqStep)
               , "minvalue"
@@ -198,9 +201,7 @@ instance RenderPredicate BP.Postgres SequencePredicate where
         (<> ";")
           . T.intercalate " "
           . (["alter sequence if exists", mkTableName seqName] ++)
-          <$> [ ["as " <> T.pack (toLower <$> show seqType)]
-              | _type /= seqType
-              ]
+          <$> [["as " <> T.pack (toLower <$> show seqType)] | _type /= seqType]
                 ++ [ ["increment by " <> T.pack (show seqStep)]
                    | step /= seqStep
                    ]
@@ -228,7 +229,7 @@ instance RenderPredicate BP.Postgres SequencePredicate where
 instance RenderPredicate BP.Postgres PgHasSchema where
   mutatePredicate _ _ p = return p
   renderQuery PgHasSchema {schemaName} =
-    ["create schema if not exists " <> quote schemaName <> ";"]
+    ["create schema if not exists " <> quoteIfAnyUpper schemaName <> ";"]
 
 instance RenderPredicate BP.Postgres DBPredicate where
   renderQuery =

@@ -22,6 +22,7 @@ library
       Database.Migration.Types.LinkedHashMap
       Database.Migration.Types.Sequence
       Database.Migration.Utils.Beam
+      Database.Migration.Utils.Check
       Database.Migration.Utils.Common
       Database.Migration.Utils.Parser
   other-modules:

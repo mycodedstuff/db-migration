@@ -11,7 +11,7 @@
 
 #### How can this library help?
 
-1. Generate SQL statements for a given schema (trick is to run it against an empty schema)
+1. Generate SQL statements for a given schema (trick is to run it against an empty/undefined schema)
 2. Validate if database schema is in sync
 3. Generate delta DDL statement for quick sync (dev productivity)
 4. Automatic schema sync on runtime (pass the generated sql statements to database)
@@ -22,13 +22,33 @@ Module Database.Migration exports a function schemaDiff which takes a Connection
 Refer to [examples](examples) for implementation
 
 Example output:
-```shell
+```sql
 ❯ stack run
 Initiating connect
 Connected to postgres
-create type "enum_Issues_status" as enum ('RAISED', 'ACTIVE', 'RESOLVED');
-create table if not exists public."Configurations" ("createdAt" timestamp with time zone not null, "id" int not null primary key, "key" varchar not null, "updatedAt" timestamp with time zone not null, "value" varchar not null);
-create table if not exists public."Issues" ("createdAt" timestamp with time zone not null, "id" varchar not null primary key, "image" bytea, "message" varchar not null, "status" "enum_Issues_status" not null, "store" json, "updatedAt" timestamp with time zone not null);
+create schema if not exists migration;
+create sequence if not exists migration."Configurations_id_seq" as bigint increment by 1 minvalue 1 maxvalue 9223372036854775807 start with 1;
+create table if not exists migration."Configurations" (id bigint not null primary key default nextval('migration."Configurations_id_seq"'::regclass), key varchar not null, value varchar not null, "createdAt" timestamp with time zone not null, "updatedAt" timestamp with time zone not null);
+create table if not exists migration."Issues" (id varchar not null primary key, message varchar not null, status "enum_Issues_status" not null, image bytea, store json, "createdAt" timestamp with time zone not null, "updatedAt" timestamp with time zone not null);
+```
+
+#### Additional Features
+##### 1. Lenient type checks for columns
+
+This library allows you to define which type differences are acceptable.
+> This is useful in case where you already have a database whose column types may not agree with beam and running alters may not be feasible
+
+Sample Usage
+```haskell
+-- Define a function which returns true for acceptable type differences
+-- Below function says if haskell schema has Text and DB has Varchar (any length) then it's acceptable and vice versa for other cases it's not
+columnTypeLenient :: ColumnType -> ColumnType -> Bool
+columnTypeLenient PgText (VarChar _) = True
+columnTypeLenient (VarChar _) PgText = True
+columnTypeLenient _ _ = False
+
+-- Supply this function to schemaDiff via options
+schemaDiff conn dbSettings $ defaultOptions {typeLenient = Just columnTypeLenient}
 ```
 
 #### TODOs

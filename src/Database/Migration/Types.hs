@@ -21,6 +21,16 @@ class RenderPredicate be p where
   mutatePredicate ::
        BP.Connection -> LHM.LinkedHashMap T.Text DBPredicate -> p -> IO p
 
+type ColumnTypeCheck = ColumnType -> ColumnType -> Bool
+
+data Options = Options
+  { schemaName :: !(Maybe T.Text)
+  , typeLenient :: !(Maybe ColumnTypeCheck)
+  }
+
+defaultOptions :: Options
+defaultOptions = Options Nothing Nothing
+
 type PredicateInfo a = Map.Map T.Text a
 
 data CharTypeInfo = CharTypeInfo
@@ -75,7 +85,7 @@ instance A.FromJSON TypeInfo where
                      else c)
           }
 
-data ColumnInfo
+data ColumnType
   = VarChar
       { varchar :: !CharTypeInfo
       }
@@ -98,11 +108,11 @@ data ColumnInfo
   | SmallInt
   | PgText
   | JSONB
-  | Arr !ColumnInfo
+  | Arr !ColumnType
   | Blob
   deriving (Generic, Show, Eq)
 
-instance A.FromJSON ColumnInfo where
+instance A.FromJSON ColumnType where
   parseJSON v =
     case v of
       "int" -> return Integer
@@ -145,7 +155,7 @@ instance A.FromJSON ColumnInfo where
 data TableHasColumnInfo = TableHasColumnInfo
   { _table :: !BM.QualifiedName
   , _column :: !T.Text
-  , _type :: !ColumnInfo
+  , _type :: !ColumnType
   } deriving (Generic, Show, Eq)
 
 instance A.FromJSON TableHasColumnInfo where
@@ -239,7 +249,7 @@ instance Ord DBPredicate where
 data ColumnPredicate = ColumnPredicate
   { columnName :: !T.Text
   , columnTable :: !BM.QualifiedName
-  , columnType :: !(Maybe ColumnInfo)
+  , columnType :: !(Maybe ColumnType)
   , columnConstraint :: ![ColumnConstraintInfo]
   , isPrimary :: !(Maybe PrimaryKeyInfo)
   , columnDefault :: !(Maybe MP.ColumnDefault)

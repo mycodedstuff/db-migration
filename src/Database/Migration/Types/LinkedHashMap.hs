@@ -16,7 +16,7 @@ instance Foldable (LinkedHashMap k) where
   foldr f b0 (LinkedHashMap _ s) = foldr f b0 s
 
 instance Functor (LinkedHashMap k) where
- fmap = map
+  fmap = map
 
 instance Traversable (LinkedHashMap k) where
   traverse f (LinkedHashMap hMap seq) = LinkedHashMap hMap <$> traverse f seq
@@ -71,4 +71,3 @@ fromList list =
 
 map :: (a -> b) -> LinkedHashMap k a -> LinkedHashMap k b
 map f (LinkedHashMap hMap seq) = LinkedHashMap hMap $ f <$> seq
-

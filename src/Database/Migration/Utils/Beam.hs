@@ -33,9 +33,9 @@ pgEnumerationType nm =
     (BP.emit (DTE.encodeUtf8 nm))
     (BP.pgDataTypeJSON (A.object ["customType" A..= nm]))
 
-columnTypeToSqlType :: ColumnInfo -> T.Text
+columnTypeToSqlType :: ColumnType -> T.Text
 columnTypeToSqlType (VarChar cTypeInfo) = "varchar" <> mkVarcharPrec cTypeInfo
-columnTypeToSqlType (Char _) = "char"
+columnTypeToSqlType (Char cTypeInfo) = "char" <> mkVarcharPrec cTypeInfo
 columnTypeToSqlType Integer = "int"
 columnTypeToSqlType (Numeric info) = "numeric" <> mkNumericPrec info
 columnTypeToSqlType Boolean = "boolean"

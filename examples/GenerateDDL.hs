@@ -42,8 +42,9 @@ main = do
           , connectDatabase = "testdb"
           }
   putStrLn "Connected to postgres"
-  let schema = Nothing
-  diff <- DBM.schemaDiff conn schema $ testDB schema
+  let schema = Just "migration"
+  let options = DBM.defaultOptions {schemaName = schema}
+  diff <- DBM.schemaDiff conn (testDB schema) options
   case diff of
     Right DBM.Sync -> putStrLn "Schema in sync"
     Right (DBM.Diff queries) -> traverse_ (putStrLn . unpack) queries

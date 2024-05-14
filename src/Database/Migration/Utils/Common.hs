@@ -43,3 +43,7 @@ fromResult defaultFn =
   \case
     A.Success a -> a
     A.Error err -> defaultFn err
+
+{-# INLINE snoc #-}
+snoc :: [a] -> a -> [a]
+snoc arr a = arr ++ [a]

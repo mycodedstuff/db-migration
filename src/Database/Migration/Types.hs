@@ -26,10 +26,11 @@ type ColumnTypeCheck = ColumnType -> ColumnType -> Bool
 data Options = Options
   { schemaName :: !(Maybe T.Text)
   , typeLenient :: !(Maybe ColumnTypeCheck)
+  , partitionMap :: !(HM.HashMap T.Text [T.Text])
   }
 
 defaultOptions :: Options
-defaultOptions = Options Nothing Nothing
+defaultOptions = Options Nothing Nothing HM.empty
 
 type PredicateInfo a = Map.Map T.Text a
 

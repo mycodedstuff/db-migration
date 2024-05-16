@@ -60,6 +60,8 @@ library
     , ghc-prim
     , hashable
     , integer-gmp
+    , microlens
+    , mtl
     , postgresql-simple
     , scientific
     , text
@@ -106,4 +108,5 @@ executable generate-dll
     , postgresql-simple
     , text
     , time
+    , unordered-containers
   default-language: Haskell2010

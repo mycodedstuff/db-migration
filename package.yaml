@@ -45,6 +45,8 @@ library:
     - vector
     - hashable
     - scientific
+    - mtl
+    - microlens
 
 executables:
   generate-dll:
@@ -61,3 +63,4 @@ executables:
       - beam-migrate
       - beam-postgres
       - postgresql-simple
+      - unordered-containers

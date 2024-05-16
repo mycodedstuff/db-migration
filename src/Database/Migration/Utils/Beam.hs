@@ -1,18 +1,23 @@
 module Database.Migration.Utils.Beam where
 
 import Control.Applicative ((<|>))
+import Control.Monad.Writer
 import qualified Data.Aeson as A
 import Data.Char (toUpper)
 import qualified Data.Foldable as DF
 import Data.Functor.Identity (Identity(..))
-import Data.Monoid (Endo(Endo))
+import qualified Data.HashMap.Strict as HM
+import Data.Maybe (fromMaybe)
+import Data.Proxy
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as DTE
 import Data.Typeable (typeOf)
 import qualified Database.Beam as B
 import qualified Database.Beam.Migrate.Types as BM
+import qualified Database.Beam.Postgres as BP
 import qualified Database.Beam.Postgres.Syntax as BP
 import qualified Database.Beam.Schema.Tables as BT
+import Lens.Micro ((^.))
 import Text.Read (readMaybe)
 
 import Database.Migration.Predicate
@@ -119,7 +124,7 @@ groupColumnPredicate ::
      BM.SomeDatabasePredicate
   -> LHM.LinkedHashMap T.Text DBPredicate
   -> LHM.LinkedHashMap T.Text DBPredicate
-groupColumnPredicate predicate acc = do
+groupColumnPredicate predicate acc =
   let TableHasColumnInfo {..} = parseTableHasColumnPredicate predicate
       columnPredicate =
         ColumnPredicate _column _table (Just _type) [] Nothing Nothing False
@@ -143,7 +148,7 @@ groupConstraintPredicate ::
      BM.SomeDatabasePredicate
   -> LHM.LinkedHashMap T.Text DBPredicate
   -> LHM.LinkedHashMap T.Text DBPredicate
-groupConstraintPredicate predicate acc = do
+groupConstraintPredicate predicate acc =
   let constraintInfo@ColumnConstraintInfo {_table, _column} =
         parseTableColumnConstraintPredicate predicate
       columnPredicate =
@@ -175,7 +180,7 @@ groupPrimaryKeyPredicate ::
      BM.SomeDatabasePredicate
   -> LHM.LinkedHashMap T.Text DBPredicate
   -> LHM.LinkedHashMap T.Text DBPredicate
-groupPrimaryKeyPredicate predicate acc = do
+groupPrimaryKeyPredicate predicate acc =
   let pKeyInfo@(PrimaryKeyInfo table columns) =
         parseTableHasPrimaryKeyPredicate predicate
    in case columns of
@@ -215,7 +220,7 @@ groupEnumPredicate ::
      BM.SomeDatabasePredicate
   -> LHM.LinkedHashMap T.Text DBPredicate
   -> LHM.LinkedHashMap T.Text DBPredicate
-groupEnumPredicate predicate acc = do
+groupEnumPredicate predicate acc =
   let enumInfo@EnumInfo {name} = parsePgHasEnum predicate
    in LHM.insert name (DBHasEnum $ EnumPredicate enumInfo []) acc
 
@@ -223,7 +228,7 @@ groupSequencePredicate ::
      BM.SomeDatabasePredicate
   -> LHM.LinkedHashMap T.Text DBPredicate
   -> LHM.LinkedHashMap T.Text DBPredicate
-groupSequencePredicate predicate acc = do
+groupSequencePredicate predicate acc =
   let sequencePredicate@PgHasSequence {seqName} = parsePgHasSequence predicate
    in LHM.insert
         (mkTableName seqName)
@@ -234,7 +239,7 @@ groupColumnDefaultPredicate ::
      BM.SomeDatabasePredicate
   -> LHM.LinkedHashMap T.Text DBPredicate
   -> LHM.LinkedHashMap T.Text DBPredicate
-groupColumnDefaultPredicate predicate acc = do
+groupColumnDefaultPredicate predicate acc =
   let TableColumnHasDefault {..} = parseTableHasColumnDefault predicate
       columnPredicate =
         ColumnPredicate
@@ -265,7 +270,7 @@ groupPgHasSchemaPredicate ::
      BM.SomeDatabasePredicate
   -> LHM.LinkedHashMap T.Text DBPredicate
   -> LHM.LinkedHashMap T.Text DBPredicate
-groupPgHasSchemaPredicate predicate acc = do
+groupPgHasSchemaPredicate predicate acc =
   let schemaPredicate@PgHasSchema {schemaName} = parsePgHasSchema predicate
    in LHM.insert schemaName (DBHasSchema schemaPredicate) acc
 
@@ -324,3 +329,61 @@ parseColumnDefault str =
       if T.isPrefixOf "nextval" str
         then Sequence str
         else LiteralStr str
+
+qname ::
+     BT.IsDatabaseEntity be entity
+  => BT.DatabaseEntityDescriptor be entity
+  -> BM.QualifiedName
+qname e = BM.QualifiedName (e ^. BT.dbEntitySchema) (e ^. BT.dbEntityName)
+
+collectPartitionChecks ::
+     forall db. (B.Database BP.Postgres db)
+  => HM.HashMap T.Text [T.Text]
+  -> BM.CheckedDatabaseSettings BP.Postgres db
+  -> HM.HashMap T.Text [BM.SomeDatabasePredicate]
+collectPartitionChecks details db =
+  let (_ :: BM.CheckedDatabaseSettings BP.Postgres db, a) =
+        runWriter
+          $ BT.zipTables
+              (Proxy @BP.Postgres)
+              (\e@(BM.CheckedDatabaseEntity entity _ :: BM.CheckedDatabaseEntity
+                     BP.Postgres
+                     db
+                     entityType) b -> do
+                 let entityName = BM.unCheck entity ^. BT.dbEntityName
+                     partitionNames =
+                       fromMaybe [] $ HM.lookup entityName details
+                 DF.traverse_
+                   (\pName ->
+                      let rEntity =
+                            getEntity
+                              $ renameCheckedDatabaseEntity (const pName) e
+                          preds = BM.collectEntityChecks rEntity
+                       in tell
+                            $ HM.singleton
+                                (mkTableName . qname $ BM.unCheck rEntity)
+                                preds)
+                   partitionNames
+                 let preds = BM.collectEntityChecks entity
+                 tell
+                   $ HM.singleton
+                       (mkTableName . qname $ BM.unCheck entity)
+                       preds
+                 pure b)
+              db
+              db
+   in a
+
+renameCheckedDatabaseEntity ::
+     (T.Text -> T.Text)
+  -> BM.CheckedDatabaseEntity BP.Postgres db entityType
+  -> BM.CheckedDatabaseEntity BP.Postgres db entityType
+renameCheckedDatabaseEntity fn =
+  appEndo
+    (let (BT.EntityModification endo) = BM.renameCheckedEntity fn
+      in endo)
+
+getEntity ::
+     BM.CheckedDatabaseEntity BP.Postgres db entityType
+  -> BM.CheckedDatabaseEntityDescriptor BP.Postgres entityType
+getEntity (BM.CheckedDatabaseEntity entity _) = entity

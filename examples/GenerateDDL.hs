@@ -7,7 +7,6 @@ import Data.Foldable (traverse_)
 import Data.Text
 import qualified Database.Beam as B
 import qualified Database.Beam.Migrate as BM
-import Database.Beam.Postgres (Postgres)
 import qualified Database.Beam.Postgres as BP
 import GHC.Generics (Generic)
 
@@ -20,7 +19,7 @@ data TestDB f = TestDB
   } deriving (Generic)
     deriving anyclass (B.Database be)
 
-testDB :: Maybe Text -> BM.CheckedDatabaseSettings Postgres TestDB
+testDB :: Maybe Text -> BM.CheckedDatabaseSettings BP.Postgres TestDB
 testDB schema =
   BM.defaultMigratableDbSettings
     `B.withDbModification` B.dbModification

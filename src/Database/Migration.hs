@@ -15,6 +15,7 @@ import qualified Database.Migration.Types.LinkedHashMap as LHM
 import Database.Migration.Utils.Beam
 import Database.Migration.Utils.Check
 import Database.Migration.Utils.Common
+import qualified Data.HashMap.Strict as HM
 
 schemaDiff ::
      B.Database BP.Postgres db
@@ -23,7 +24,7 @@ schemaDiff ::
   -> Options
   -> IO (Either String DBDiff)
 schemaDiff conn checkedDB options = do
-  let haskellConstraints = BM.collectChecks checkedDB
+  let haskellConstraints = concat $ HM.elems $ collectPartitionChecks (partitionMap options) checkedDB
       mSchema = schemaName options
       schema = fromMaybe "public" mSchema
       schemaConstraint = BM.SomeDatabasePredicate $ PgHasSchema schema

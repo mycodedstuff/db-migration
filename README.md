@@ -35,7 +35,8 @@ create table if not exists migration."Issues" (id varchar not null primary key, 
 #### Additional Features
 ##### 1. Lenient type checks for columns
 
-This library allows you to define which type differences are acceptable.
+This library allows you to define which type differences are acceptable using option `typeLenient`.
+This options takes a function with 2 parameters column type defined in haskell schema, data type in postgres and result true if the difference is acceptable.
 > This is useful in case where you already have a database whose column types may not agree with beam and running alters may not be feasible
 
 Sample Usage
@@ -51,9 +52,30 @@ columnTypeLenient _ _ = False
 schemaDiff conn dbSettings $ defaultOptions {typeLenient = Just columnTypeLenient}
 ```
 
+##### 2. Table Partition Support
+
+Option `partitionMap` can be used to provide partition names for a particular table.
+When supplied this with option the mentioned partitions will be included as separate tables and will share the schema of the parent table name supplied in key
+
+> Note: Currently both the parent table `Issues` and it's partitions will be included in validation. This option is useful for application managed partitioning.
+
+Sample Usage
+```haskell
+-- Define the partitions against a table name
+-- In below sample there is an Issues table with 3 partitions by month
+partitions :: HM.HashMap Text [Text]
+partitions =
+  HM.fromList
+    [("Issues", ["Issue_M_202405", "Issue_M_202404", "Issue_M_202403"])]
+
+
+-- Supply this map to schemaDiff via options
+schemaDiff conn dbSettings $ defaultOptions {partitionOptions = DBM.PartitionOption True partitions}
+```
+
 #### TODOs
 
-1. Support for partitioned tables (manual and db supported)
+1. Support for postgres partitioned tables
 
 #### Explore
 

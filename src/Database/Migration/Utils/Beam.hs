@@ -324,7 +324,8 @@ yesNoToBool str =
 parseColumnDefault :: T.Text -> ColumnDefault
 parseColumnDefault str =
   case readMaybe $ T.unpack str of
-    Just num -> LiteralInt (Just $ T.length $ T.takeWhile (== '.') str) num
+    Just num ->
+      LiteralInt (Just $ T.length $ T.tail $ T.dropWhile (/= '.') str) num
     Nothing ->
       if T.isPrefixOf "nextval" str
         then Sequence str
@@ -338,11 +339,12 @@ qname e = BM.QualifiedName (e ^. BT.dbEntitySchema) (e ^. BT.dbEntityName)
 
 collectPartitionChecks ::
      forall db. (B.Database BP.Postgres db)
-  => HM.HashMap T.Text [T.Text]
+  => PartitionOption
   -> BM.CheckedDatabaseSettings BP.Postgres db
-  -> HM.HashMap T.Text [BM.SomeDatabasePredicate]
-collectPartitionChecks details db =
-  let (_ :: BM.CheckedDatabaseSettings BP.Postgres db, a) =
+  -> [BM.SomeDatabasePredicate]
+collectPartitionChecks options db =
+  let details = partitionMap options
+      (_ :: BM.CheckedDatabaseSettings BP.Postgres db, a) =
         runWriter
           $ BT.zipTables
               (Proxy @BP.Postgres)
@@ -358,17 +360,10 @@ collectPartitionChecks details db =
                       let rEntity =
                             getEntity
                               $ renameCheckedDatabaseEntity (const pName) e
-                          preds = BM.collectEntityChecks rEntity
-                       in tell
-                            $ HM.singleton
-                                (mkTableName . qname $ BM.unCheck rEntity)
-                                preds)
+                       in tell $ BM.collectEntityChecks rEntity)
                    partitionNames
-                 let preds = BM.collectEntityChecks entity
-                 tell
-                   $ HM.singleton
-                       (mkTableName . qname $ BM.unCheck entity)
-                       preds
+                 when (includeParentTable options) $ do
+                   tell $ BM.collectEntityChecks entity
                  pure b)
               db
               db

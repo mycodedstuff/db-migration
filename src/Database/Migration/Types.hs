@@ -23,14 +23,19 @@ class RenderPredicate be p where
 
 type ColumnTypeCheck = ColumnType -> ColumnType -> Bool
 
-data Options = Options
-  { schemaName :: !(Maybe T.Text)
-  , typeLenient :: !(Maybe ColumnTypeCheck)
+data PartitionOption = PartitionOption
+  { includeParentTable :: !Bool
   , partitionMap :: !(HM.HashMap T.Text [T.Text])
   }
 
+data Options = Options
+  { schemaName :: !(Maybe T.Text)
+  , typeLenient :: !(Maybe ColumnTypeCheck)
+  , partitionOptions :: !PartitionOption
+  }
+
 defaultOptions :: Options
-defaultOptions = Options Nothing Nothing HM.empty
+defaultOptions = Options Nothing Nothing (PartitionOption True HM.empty)
 
 type PredicateInfo a = Map.Map T.Text a
 

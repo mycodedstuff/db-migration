@@ -1,4 +1,5 @@
-# <image src="https://wiki.haskell.org/wikistatic/haskellwiki_logo.png?e89e3" width=38> db-migration
+<h1 style="display:flex"> <image src="https://skillicons.dev/icons?i=haskell" width=36 style="margin-right:10px"> db-migration</h1>
+
 ![Version](https://img.shields.io/badge/version-v0.0.1-blue)
 [![Haskell CI](https://github.com/mycodedstuff/db-migration/actions/workflows/haskell.yml/badge.svg)](https://github.com/mycodedstuff/db-migration/actions/workflows/haskell.yml)
 ![GHC Version](https://img.shields.io/badge/GHC-v8.10.7-brightgreen)
@@ -54,7 +55,7 @@ schemaDiff conn dbSettings $ defaultOptions {typeLenient = Just columnTypeLenien
 
 ##### 2. Table Partition Support
 
-Option `partitionMap` can be used to provide partition names for a particular table.
+Option `partitionOptions` can be used to provide partition names for a particular table.
 When supplied this with option the mentioned partitions will be included as separate tables and will share the schema of the parent table name supplied in key
 
 > Note: Currently both the parent table `Issues` and it's partitions will be included in validation. This option is useful for application managed partitioning.

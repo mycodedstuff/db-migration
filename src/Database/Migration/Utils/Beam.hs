@@ -7,6 +7,7 @@ import Data.Char (toUpper)
 import qualified Data.Foldable as DF
 import Data.Functor.Identity (Identity(..))
 import qualified Data.HashMap.Strict as HM
+import Data.Kind
 import Data.Maybe (fromMaybe)
 import Data.Proxy
 import qualified Data.Text as T
@@ -17,9 +18,12 @@ import qualified Database.Beam.Migrate.Types as BM
 import qualified Database.Beam.Postgres as BP
 import qualified Database.Beam.Postgres.Syntax as BP
 import qualified Database.Beam.Schema.Tables as BT
+import GHC.Generics (Generic(..))
+import Generics.Deriving (ConNames)
 import Lens.Micro ((^.))
 import Text.Read (readMaybe)
 
+import qualified Database.Beam.Migrate.Types as BT
 import Database.Migration.Predicate
   ( ColumnDefault(..)
   , PgHasSchema(..)
@@ -57,7 +61,6 @@ columnTypeToSqlType (Timestamp TimestampTypeInfo {timezone}) =
 columnTypeToSqlType PgText = "text"
 columnTypeToSqlType JSONB = "jsonb"
 columnTypeToSqlType (Arr c) = columnTypeToSqlType c <> "[]"
-columnTypeToSqlType Blob = "blob"
 columnTypeToSqlType SmallInt = "smallint"
 
 -- Handle collation
@@ -127,7 +130,7 @@ groupColumnPredicate ::
 groupColumnPredicate predicate acc =
   let TableHasColumnInfo {..} = parseTableHasColumnPredicate predicate
       columnPredicate =
-        ColumnPredicate _column _table (Just _type) [] Nothing Nothing False
+        ColumnPredicate _column _table (Just _type) [] Nothing Nothing Nothing
    in LHM.insertWith
         (\newV oldV ->
            case oldV of
@@ -159,7 +162,7 @@ groupConstraintPredicate predicate acc =
           [constraintInfo]
           Nothing
           Nothing
-          False
+          Nothing
    in LHM.insertWith
         (\newV oldV ->
            case oldV of
@@ -187,7 +190,7 @@ groupPrimaryKeyPredicate predicate acc =
         [] -> acc
         [c] ->
           let columnPredicate =
-                ColumnPredicate c table Nothing [] (Just pKeyInfo) Nothing False
+                ColumnPredicate c table Nothing [] (Just pKeyInfo) Nothing Nothing
            in LHM.insertWith
                 (\newV oldV ->
                    case oldV of
@@ -249,7 +252,7 @@ groupColumnDefaultPredicate predicate acc =
           []
           Nothing
           (Just defaultValue)
-          False
+          Nothing
    in LHM.insertWith
         (\newV oldV ->
            case oldV of
@@ -285,7 +288,7 @@ upsertColumnPredicate p =
          { columnType = columnType oldV <|> columnType newV
          , isPrimary = isPrimary oldV <|> isPrimary newV
          , columnConstraint = columnConstraint oldV ++ columnConstraint newV
-         , columnExistsInDB = columnExistsInDB oldV || columnExistsInDB newV
+         , columnTypeInDB = columnTypeInDB oldV <|> columnTypeInDB newV
          , columnDefault = columnDefault oldV <|> columnDefault newV
          })
     (columnName p)
@@ -325,7 +328,7 @@ parseColumnDefault :: T.Text -> ColumnDefault
 parseColumnDefault str =
   case readMaybe $ T.unpack str of
     Just num ->
-      LiteralInt (Just $ T.length $ T.tail $ T.dropWhile (/= '.') str) num
+      LiteralInt (Just $ T.length $ T.drop 1 $ T.dropWhile (/= '.') str) num
     Nothing ->
       if T.isPrefixOf "nextval" str
         then Sequence str
@@ -355,6 +358,8 @@ collectPartitionChecks options db =
                  let entityName = BM.unCheck entity ^. BT.dbEntityName
                      partitionNames =
                        fromMaybe [] $ HM.lookup entityName details
+                 when (includeParentTable options || null partitionNames) $ do
+                   tell $ BM.collectEntityChecks entity
                  DF.traverse_
                    (\pName ->
                       let rEntity =
@@ -362,8 +367,6 @@ collectPartitionChecks options db =
                               $ renameCheckedDatabaseEntity (const pName) e
                        in tell $ BM.collectEntityChecks rEntity)
                    partitionNames
-                 when (includeParentTable options) $ do
-                   tell $ BM.collectEntityChecks entity
                  pure b)
               db
               db
@@ -382,3 +385,42 @@ getEntity ::
      BM.CheckedDatabaseEntity BP.Postgres db entityType
   -> BM.CheckedDatabaseEntityDescriptor BP.Postgres entityType
 getEntity (BM.CheckedDatabaseEntity entity _) = entity
+
+unCheckFieldModification ::
+     forall (tbl :: (Type -> Type) -> Type).
+     ( BT.Beamable tbl
+     , Generic (BT.TableSettings tbl)
+     , BT.GDefaultTableFieldSettings (Rep (BT.TableSettings tbl) ())
+     )
+  => tbl (BM.CheckedFieldModification tbl)
+  -> tbl (B.FieldModification (B.TableField tbl))
+unCheckFieldModification fm =
+  runIdentity
+    $ BT.zipBeamFieldsM
+        (\(BT.Columnar' (BT.CheckedFieldModification fieldMod _)) _ ->
+           pure $ BT.Columnar' (BT.FieldModification fieldMod))
+        fm
+        fm
+
+enumFieldCheck ::
+     (Generic a, ConNames (Rep a))
+  => Proxy a
+  -> Maybe T.Text
+  -> (T.Text -> T.Text)
+  -> BM.FieldCheck
+enumFieldCheck p mName fn =
+  BM.FieldCheck
+    (\(BM.QualifiedName _ tableName) colName ->
+       BM.p
+         (BP.PgHasEnum (fromMaybe (enumName tableName colName) mName)
+            $ fn <$> constructorNames p))
+  where
+    enumName :: T.Text -> T.Text -> T.Text
+    enumName tblName colName = "enum_" <> tblName <> "_" <> colName
+
+enumFieldCheckId :: (Generic a, ConNames (Rep a)) => Proxy a -> BT.FieldCheck
+enumFieldCheckId p = enumFieldCheck p Nothing id
+
+enumFieldCheckWithName ::
+     (Generic a, ConNames (Rep a)) => Proxy a -> T.Text -> BT.FieldCheck
+enumFieldCheckWithName p name = enumFieldCheck p (Just name) id

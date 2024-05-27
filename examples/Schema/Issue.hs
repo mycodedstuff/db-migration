@@ -56,12 +56,7 @@ instance BA.HasSqlValueSyntax BP.PgValueSyntax IssueStatus where
 
 instance BM.HasDefaultSqlDataType BP.Postgres IssueStatus where
   defaultSqlDataType _ _ _ = pgEnumerationType "enum_Issues_status"
-  defaultSqlDataTypeConstraints _ _ _ =
-    [ BM.FieldCheck
-        (\_ _ ->
-           BM.p
-             (BP.PgHasEnum "enum_Issues_status" ["RAISED", "ACTIVE", "RESOLVED"]))
-    ] -- Try Generics to add constructor names
+  defaultSqlDataTypeConstraints p _ _ = [enumFieldCheckId p]
 
 instance B.Table IssueT where
   data PrimaryKey IssueT f =

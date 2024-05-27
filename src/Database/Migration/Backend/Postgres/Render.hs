@@ -3,7 +3,6 @@
 module Database.Migration.Backend.Postgres.Render where
 
 import qualified Data.Foldable as DF
-import Data.Maybe (isJust)
 import Data.Scientific (FPFormat(Fixed), formatScientific)
 import qualified Data.Text as T
 import qualified Database.Beam.Migrate.Types as BM
@@ -15,6 +14,7 @@ import Database.Migration.Types
 import qualified Database.Migration.Types.LinkedHashMap as LHM
 import Database.Migration.Utils.Beam
 import Database.Migration.Utils.Common
+import Data.Maybe (fromMaybe)
 
 mkConstraintTypeToSqlSyntax :: ColumnConstraintInfo -> T.Text
 mkConstraintTypeToSqlSyntax ColumnConstraintInfo {..} =
@@ -71,68 +71,82 @@ mkAlterSuffix columnName ConstraintInfo {..} =
 
 instance RenderPredicate BP.Postgres ColumnPredicate where
   mutatePredicate _ dbPreds p@ColumnPredicate {columnName, columnTable} = do
-    let columnExists =
+    let cTypeInDB =
           case LHM.lookup (mkTableName columnTable) dbPreds of
             Just (DBHasTable (TablePredicate _ colMap _)) ->
-              isJust $ LHM.lookup columnName colMap
-            _ignore -> False
-    return $ p {columnExistsInDB = columnExists}
-  renderQuery p@(ColumnPredicate columnName tableName maybeType constraints maybePKey mDefault existsInDB) =
-    if existsInDB
-      then maybe
-             []
-             (\_type ->
-                [ "alter table "
-                    <> mkTableName tableName
-                    <> " alter column "
-                    <> quoteIfAnyUpper columnName
-                    <> " type "
-                    <> columnTypeToSqlType _type
-                    <> ";"
-                ])
-             maybeType
-             ++ maybe
-                  []
-                  (\_default ->
-                     [ T.intercalate
-                         " "
-                         [ "alter table"
-                         , mkTableName tableName
-                         , "alter column"
-                         , quoteIfAnyUpper columnName
-                         , "set default"
-                         , mkDefault _default
-                         ]
-                         <> ";"
-                     ])
-                  mDefault
-             ++ fmap
-                  (\ColumnConstraintInfo {..} ->
-                     T.intercalate
-                       " "
-                       [ "alter table"
-                       , mkTableName _table
-                       , mkAlterSuffix _column _constraint
-                       ])
-                  constraints
-             ++ maybe
-                  []
-                  (\PrimaryKeyInfo {..} ->
-                     [ "alter table "
-                         <> mkTableName table
-                         <> " add constraint "
-                         <> quoteIfAnyUpper (mkPrimaryContraintName table)
-                         <> " primary key ("
-                         <> T.intercalate ", " (quoteIfAnyUpper <$> columns)
-                         <> ");"
-                     ])
-                  maybePKey
-      else [ "alter table "
-               <> mkTableName tableName
-               <> " add column if not exists "
-               <> mkColumnForCreateTable p
-               <> ";"
-           ]
+              columnType =<< LHM.lookup columnName colMap
+            _ignore -> Nothing
+    return $ p {columnTypeInDB = cTypeInDB}
+  renderQuery p@(ColumnPredicate columnName tableName maybeType constraints maybePKey mDefault mColumnTypeInDB) =
+    case mColumnTypeInDB of
+      Just cTypeInDB ->
+        maybe
+          []
+          (\_type ->
+             [ "alter table "
+                 <> mkTableName tableName
+                 <> " alter column "
+                 <> quoteIfAnyUpper columnName
+                 <> " type "
+                 <> columnTypeToSqlType _type
+                 <> " "
+                 <> fromMaybe "" (mkColumnTypeCasting columnName _type cTypeInDB)
+                 <> ";"
+             ])
+          maybeType
+          ++ maybe
+               []
+               (\_default ->
+                  [ T.intercalate
+                      " "
+                      [ "alter table"
+                      , mkTableName tableName
+                      , "alter column"
+                      , quoteIfAnyUpper columnName
+                      , "set default"
+                      , mkDefault _default
+                      ]
+                      <> ";"
+                  ])
+               mDefault
+          ++ fmap
+               (\ColumnConstraintInfo {..} ->
+                  T.intercalate
+                    " "
+                    [ "alter table"
+                    , mkTableName _table
+                    , mkAlterSuffix _column _constraint
+                    ])
+               constraints
+          ++ maybe
+               []
+               (\PrimaryKeyInfo {..} ->
+                  [ "alter table "
+                      <> mkTableName table
+                      <> " add constraint "
+                      <> quoteIfAnyUpper (mkPrimaryContraintName table)
+                      <> " primary key ("
+                      <> T.intercalate ", " (quoteIfAnyUpper <$> columns)
+                      <> ");"
+                  ])
+               maybePKey
+      Nothing ->
+        [ "alter table "
+            <> mkTableName tableName
+            <> " add column if not exists "
+            <> mkColumnForCreateTable p
+            <> ";"
+        ]
+
+-- Constructs type casting for alter type queries with using clause
+-- TODO: Add support for more type casting
+mkColumnTypeCasting :: T.Text -> ColumnType -> ColumnType -> Maybe T.Text
+mkColumnTypeCasting colName hType dbType =
+  ("using " <>) <$> castTypes hType dbType
+  where
+    castTypes (Enum enumName) (VarChar _) =
+      Just $ quoteIfAnyUpper colName <> "::" <> quote enumName
+    castTypes _ _ = Nothing
 
 mkDefault :: ColumnDefault -> T.Text
 mkDefault =
@@ -173,7 +187,7 @@ instance RenderPredicate BP.Postgres EnumPredicate where
     let EnumInfo {name} = enumInfo
         enumValuesInDB =
           case LHM.lookup name dbPreds of
-            Just (DBHasEnum (EnumPredicate _ dbValues)) -> dbValues
+            Just (DBHasEnum (EnumPredicate (EnumInfo _ dbValues) _)) -> dbValues
             _ignore -> []
     return $ p {enumValuesInDB = enumValuesInDB}
 

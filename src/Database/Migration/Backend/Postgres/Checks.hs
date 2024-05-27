@@ -5,8 +5,8 @@ import Data.Maybe (fromMaybe, isNothing)
 import qualified Data.Text as T
 import qualified Database.Beam.Migrate as BM
 import qualified Database.Beam.Postgres as BP
-import Text.Read (readMaybe)
 import qualified Database.Beam.Postgres.Migrate as BP
+import Text.Read (readMaybe)
 
 import Database.Migration.Backend.Postgres.Queries
 import Database.Migration.Predicate

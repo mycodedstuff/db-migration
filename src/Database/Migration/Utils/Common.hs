@@ -7,7 +7,10 @@ import Data.Char (isUpper)
 import Data.List (elemIndex, sortBy)
 import qualified Data.List as L
 import Data.Maybe (fromMaybe)
+import Data.Proxy
 import qualified Data.Text as T
+import GHC.Generics
+import Generics.Deriving.ConNames
 
 {-# INLINE quote #-}
 quote :: T.Text -> T.Text
@@ -47,3 +50,10 @@ fromResult defaultFn =
 {-# INLINE snoc #-}
 snoc :: [a] -> a -> [a]
 snoc arr a = arr ++ [a]
+
+-- Returns list of constructor names for a type
+constructorNames ::
+     forall a. (Generic a, ConNames (Rep a))
+  => Proxy a
+  -> [T.Text]
+constructorNames _ = T.pack <$> conNames (undefined :: a)

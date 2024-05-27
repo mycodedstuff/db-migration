@@ -52,6 +52,7 @@ columnTypeLenient _ _ = False
 -- Supply this function to schemaDiff via options
 schemaDiff conn dbSettings $ defaultOptions {typeLenient = Just columnTypeLenient}
 ```
+> Refer [this](#haskell-and-postgres-type-mapping-with-db-migration) table to understand type for lenient type matching
 
 ##### 2. Table Partition Support
 
@@ -73,6 +74,27 @@ partitions =
 -- Supply this map to schemaDiff via options
 schemaDiff conn dbSettings $ defaultOptions {partitionOptions = DBM.PartitionOption True partitions}
 ```
+
+#### Haskell and Postgres type mapping with db-migration
+| Haskell | Postgres | db-migration (ColumnType) |
+| --- | --- | --- |
+| Text    |  varchar |  Varchar     |
+| Char    |  char    |  Char        |
+| String  |  varchar |  Varchar     |
+| Integer |  bigint  |  BigInt      |
+| Int16   |  smallint | SmallInt    |
+| Int32   |  integer |  Integer     |
+| Int64   |  bigint  | BigInt       |
+| Scientific | numeric | Numeric    |
+| ByteString | bytea |  Bytea       |
+| LocalTime | timestamp | Timestamp |
+| UTCTime | timestamp with time zone | Timestamp |
+| Value   | json     |  JSON        |
+| Value   | jsonb    |  JSONB       |
+| Bool    | bool     | Boolean      |
+| Double  | double   | Double       |
+| [Text]  | varchar()[] | Arr Varchar |
+| T = A \| B | enum    | Enum         |
 
 #### TODOs
 

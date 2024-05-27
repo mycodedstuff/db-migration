@@ -115,7 +115,6 @@ data ColumnType
   | PgText
   | JSONB
   | Arr !ColumnType
-  | Blob
   deriving (Generic, Show, Eq)
 
 instance A.FromJSON ColumnType where
@@ -125,7 +124,6 @@ instance A.FromJSON ColumnType where
       "boolean" -> return Boolean
       "double" -> return Double
       "bigint" -> return BigInt
-      "blob" -> return Blob
       "smallint" -> return SmallInt
       val -> do
         case val of
@@ -259,7 +257,7 @@ data ColumnPredicate = ColumnPredicate
   , columnConstraint :: ![ColumnConstraintInfo]
   , isPrimary :: !(Maybe PrimaryKeyInfo)
   , columnDefault :: !(Maybe MP.ColumnDefault)
-  , columnExistsInDB :: !Bool
+  , columnTypeInDB :: !(Maybe ColumnType) -- If Nothing means the column doesn't exist in database, else the column exist with type
   } deriving (Generic, Show, Eq)
 
 data EnumPredicate = EnumPredicate

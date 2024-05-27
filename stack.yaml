@@ -6,7 +6,7 @@ packages:
 
 extra-deps:
   - github: mycodedstuff/beam
-    commit: 799fe6234976a486861ad0c49c297e47765dbd13
+    commit: 343b99114315377cc84e7eda3910876d7912221e
     subdirs:
       - beam-core
       - beam-migrate

@@ -47,6 +47,7 @@ library:
     - scientific
     - mtl
     - microlens
+    - generic-deriving
 
 executables:
   generate-dll:

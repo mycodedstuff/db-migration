@@ -57,6 +57,7 @@ library
     , beam-postgres
     , bytestring
     , containers
+    , generic-deriving
     , ghc-prim
     , hashable
     , integer-gmp

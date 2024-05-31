@@ -43,11 +43,12 @@ This options takes a function with 2 parameters column type defined in haskell s
 Sample Usage
 ```haskell
 -- Define a function which returns true for acceptable type differences
--- Below function says if haskell schema has Text and DB has Varchar (any length) then it's acceptable and vice versa for other cases it's not
-columnTypeLenient :: ColumnType -> ColumnType -> Bool
-columnTypeLenient PgText (VarChar _) = True
-columnTypeLenient (VarChar _) PgText = True
-columnTypeLenient _ _ = False
+-- Takes table name, column name, haskell type and type defined in database. This function gets called if the column already exists with different type in database
+-- Below function says for particular table and column if haskell schema has Text and DB has Varchar (any length) then it's acceptable and vice versa for other cases it's not
+columnTypeLenient :: Text -> Text -> ColumnType -> ColumnType -> Bool
+columnTypeLenient _ _ PgText (VarChar _) = True
+columnTypeLenient _ _ (VarChar _) PgText = True
+columnTypeLenient _ _ _ _ = False
 
 -- Supply this function to schemaDiff via options
 schemaDiff conn dbSettings $ defaultOptions {typeLenient = Just columnTypeLenient}

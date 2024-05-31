@@ -21,7 +21,7 @@ class RenderPredicate be p where
   mutatePredicate ::
        BP.Connection -> LHM.LinkedHashMap T.Text DBPredicate -> p -> IO p
 
-type ColumnTypeCheck = ColumnType -> ColumnType -> Bool
+type ColumnTypeCheck = T.Text -> T.Text -> ColumnType -> ColumnType -> Bool
 
 data PartitionOption = PartitionOption
   { includeParentTable :: !Bool

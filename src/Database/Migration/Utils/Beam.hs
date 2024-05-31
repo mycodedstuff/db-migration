@@ -190,7 +190,14 @@ groupPrimaryKeyPredicate predicate acc =
         [] -> acc
         [c] ->
           let columnPredicate =
-                ColumnPredicate c table Nothing [] (Just pKeyInfo) Nothing Nothing
+                ColumnPredicate
+                  c
+                  table
+                  Nothing
+                  []
+                  (Just pKeyInfo)
+                  Nothing
+                  Nothing
            in LHM.insertWith
                 (\newV oldV ->
                    case oldV of
@@ -424,3 +431,22 @@ enumFieldCheckId p = enumFieldCheck p Nothing id
 enumFieldCheckWithName ::
      (Generic a, ConNames (Rep a)) => Proxy a -> T.Text -> BT.FieldCheck
 enumFieldCheckWithName p name = enumFieldCheck p (Just name) id
+
+collectTableNames ::
+     forall db. (B.Database BP.Postgres db)
+  => BM.CheckedDatabaseSettings BP.Postgres db
+  -> [T.Text]
+collectTableNames db =
+  let (_ :: BM.CheckedDatabaseSettings BP.Postgres db, a) =
+        runWriter
+          $ BT.zipTables
+              (Proxy @BP.Postgres)
+              (\(BM.CheckedDatabaseEntity entity _ :: BM.CheckedDatabaseEntity
+                   BP.Postgres
+                   db
+                   entityType) b -> do
+                 tell [BM.unCheck entity ^. BT.dbEntityName]
+                 pure b)
+              db
+              db
+   in a

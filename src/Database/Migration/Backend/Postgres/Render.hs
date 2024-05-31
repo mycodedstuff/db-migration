@@ -2,19 +2,19 @@
 
 module Database.Migration.Backend.Postgres.Render where
 
+import Data.Char (toLower)
 import qualified Data.Foldable as DF
+import Data.Maybe (fromMaybe)
 import Data.Scientific (FPFormat(Fixed), formatScientific)
 import qualified Data.Text as T
 import qualified Database.Beam.Migrate.Types as BM
 import qualified Database.Beam.Postgres as BP
 
-import Data.Char (toLower)
 import Database.Migration.Predicate
 import Database.Migration.Types
 import qualified Database.Migration.Types.LinkedHashMap as LHM
 import Database.Migration.Utils.Beam
 import Database.Migration.Utils.Common
-import Data.Maybe (fromMaybe)
 
 mkConstraintTypeToSqlSyntax :: ColumnConstraintInfo -> T.Text
 mkConstraintTypeToSqlSyntax ColumnConstraintInfo {..} =
@@ -90,7 +90,9 @@ instance RenderPredicate BP.Postgres ColumnPredicate where
                  <> " type "
                  <> columnTypeToSqlType _type
                  <> " "
-                 <> fromMaybe "" (mkColumnTypeCasting columnName _type cTypeInDB)
+                 <> fromMaybe
+                      ""
+                      (mkColumnTypeCasting columnName _type cTypeInDB)
                  <> ";"
              ])
           maybeType
@@ -144,8 +146,12 @@ mkColumnTypeCasting :: T.Text -> ColumnType -> ColumnType -> Maybe T.Text
 mkColumnTypeCasting colName hType dbType =
   ("using " <>) <$> castTypes hType dbType
   where
-    castTypes (Enum enumName) (VarChar _) =
-      Just $ quoteIfAnyUpper colName <> "::" <> quote enumName
+    castTypes hT@(Enum _) (VarChar _) =
+      Just $ quoteIfAnyUpper colName <> "::" <> columnTypeToSqlType hT
+    castTypes hT@(Numeric _) (VarChar _) =
+      Just $ quoteIfAnyUpper colName <> "::" <> columnTypeToSqlType hT
+    castTypes hT@(Enum _) (Enum _) =
+      Just $ quoteIfAnyUpper colName <> "::varchar::" <> columnTypeToSqlType hT
     castTypes _ _ = Nothing
 
 mkDefault :: ColumnDefault -> T.Text

@@ -56,7 +56,7 @@ instance (Bounded a, Integral a) =>
             (\tblName colName ->
                BM.p
                  (PgHasSequence
-                    (mkSequenceName tblName colName) -- This assumes sequence is defined in same schema as table
+                    (mkSequenceName tblName colName False) -- This assumes sequence is defined in same schema as table
                     (1, upperBound)
                     1
                     1
@@ -71,7 +71,7 @@ instance (Bounded a, Integral a) =>
                     (Sequence
                        $ renderSequenceDefault
                        $ mkTableName
-                       $ mkSequenceName tableName colName)))
+                       $ mkSequenceName tableName colName True)))
         ]
 
 resolveSequenceType ::
@@ -81,6 +81,12 @@ resolveSequenceType upperBound
   | upperBound <= toInteger (maxBound @Int32) = (Integer, BA.intType)
   | otherwise = (BigInt, BA.bigIntType)
 
-mkSequenceName :: BM.QualifiedName -> T.Text -> BM.QualifiedName
-mkSequenceName (BM.QualifiedName mSchema tableName) colName =
-  BM.QualifiedName mSchema (tableName <> "_" <> colName <> "_seq")
+-- This function create sequence name
+-- It has an option to ignore public schema which is used for column default as postgres drops public schema in sequence names
+mkSequenceName :: BM.QualifiedName -> T.Text -> Bool -> BM.QualifiedName
+mkSequenceName (BM.QualifiedName mSchema tableName) colName ignorePublic =
+  let schema =
+        if ignorePublic && mSchema == Just "public"
+          then Nothing
+          else mSchema
+   in BM.QualifiedName schema (tableName <> "_" <> colName <> "_seq")

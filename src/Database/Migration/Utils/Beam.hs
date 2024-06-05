@@ -20,9 +20,10 @@ import qualified Database.Beam.Postgres.Syntax as BP
 import qualified Database.Beam.Schema.Tables as BT
 import GHC.Generics (Generic(..))
 import Generics.Deriving (ConNames)
-import Lens.Micro ((^.))
+import Lens.Micro ((%~), (^.))
 import Text.Read (readMaybe)
 
+import Data.Function ((&))
 import qualified Database.Beam.Migrate.Types as BT
 import Database.Migration.Predicate
   ( ColumnDefault(..)
@@ -35,12 +36,16 @@ import qualified Database.Migration.Types.LinkedHashMap as LHM
 import Database.Migration.Utils.Common
 import Database.Migration.Utils.Parser
 
-pgEnumerationType :: T.Text -> BP.PgDataTypeSyntax
-pgEnumerationType nm =
+pgEnumerationType :: Maybe T.Text -> T.Text -> BP.PgDataTypeSyntax
+pgEnumerationType sch nm =
   BP.PgDataTypeSyntax
-    (BP.PgDataTypeDescrDomain nm)
+    (BP.PgDataTypeDescrDomain (BT.QualifiedName sch nm))
     (BP.emit (DTE.encodeUtf8 nm))
-    (BP.pgDataTypeJSON (A.object ["customType" A..= nm]))
+    (BP.pgDataTypeJSON (A.object ["customType" A..= BT.QualifiedName sch nm]))
+
+pgDefaultEnumerationType :: BM.QualifiedName -> T.Text -> BP.PgDataTypeSyntax
+pgDefaultEnumerationType (BM.QualifiedName sch tbl) col =
+  pgEnumerationType sch $ mkEnumName tbl col
 
 columnTypeToSqlType :: ColumnType -> T.Text
 columnTypeToSqlType (VarChar cTypeInfo) = "varchar" <> mkVarcharPrec cTypeInfo
@@ -51,7 +56,7 @@ columnTypeToSqlType Boolean = "boolean"
 columnTypeToSqlType JSON = "json"
 columnTypeToSqlType Double = "double"
 columnTypeToSqlType Bytea = "bytea"
-columnTypeToSqlType (Enum enum) = quote enum
+columnTypeToSqlType (Enum enum) = mkTableName enum
 columnTypeToSqlType BigInt = "bigint"
 columnTypeToSqlType (Timestamp TimestampTypeInfo {timezone}) =
   "timestamp"
@@ -145,7 +150,24 @@ groupColumnPredicate predicate acc =
              _ignore -> newV)
         (mkTableName _table)
         (DBTableHasColumns $ LHM.singleton _column columnPredicate)
-        acc
+        $ updateColumnOfEnumType _table _column _type acc
+
+-- This function collects the name of columns with table using enums grouped by enum name
+updateColumnOfEnumType ::
+     BM.QualifiedName
+  -> T.Text
+  -> ColumnType
+  -> LHM.LinkedHashMap T.Text DBPredicate
+  -> LHM.LinkedHashMap T.Text DBPredicate
+updateColumnOfEnumType tblName colNm t@(Enum name) =
+  LHM.adjust
+    (\oldV ->
+       case oldV of
+         DBHasEnum (EnumPredicate enumInfo cols v) ->
+           DBHasEnum (EnumPredicate enumInfo ((tblName, colNm, t) : cols) v)
+         _ignore -> oldV)
+    (mkTableName name)
+updateColumnOfEnumType _ _ _ = id
 
 groupConstraintPredicate ::
      BM.SomeDatabasePredicate
@@ -232,7 +254,16 @@ groupEnumPredicate ::
   -> LHM.LinkedHashMap T.Text DBPredicate
 groupEnumPredicate predicate acc =
   let enumInfo@EnumInfo {name} = parsePgHasEnum predicate
-   in LHM.insert name (DBHasEnum $ EnumPredicate enumInfo []) acc
+      enumName = mkTableName name
+   in LHM.insertWith
+        (\newV oldV ->
+           case oldV of
+             DBHasEnum p ->
+               DBHasEnum $ EnumPredicate enumInfo (dependentColumns p) []
+             _ignore -> newV)
+        enumName
+        (DBHasEnum $ EnumPredicate enumInfo [] [])
+        acc
 
 groupSequencePredicate ::
      BM.SomeDatabasePredicate
@@ -307,21 +338,15 @@ constraintTypeToSqlSyntax ConstraintInfo {..} columnName =
     NOT_NULL -> "alter column " <> quoteIfAnyUpper columnName <> " set not null"
 
 modifyCheckedEntitySchema ::
-     BT.IsDatabaseEntity be (B.TableEntity tbl)
+     BT.IsDatabaseEntity be entity
   => (Maybe T.Text -> Maybe T.Text)
-  -> B.EntityModification
-       (BM.CheckedDatabaseEntity be db)
-       be
-       (B.TableEntity tbl)
+  -> B.EntityModification (BM.CheckedDatabaseEntity be db) be entity
 modifyCheckedEntitySchema modSchema =
   BT.EntityModification
     (Endo
-       (\(BM.CheckedDatabaseEntity (BM.CheckedDatabaseTable desc tblChk fldChk) predicate) ->
+       (\(BM.CheckedDatabaseEntity desc predicate) ->
           BM.CheckedDatabaseEntity
-            (BM.CheckedDatabaseTable
-               (runIdentity $ BT.dbEntitySchema (Identity . modSchema) desc)
-               tblChk
-               fldChk)
+            (desc & BM.unChecked . BT.dbEntitySchema %~ modSchema)
             predicate))
 
 yesNoToBool :: String -> Bool
@@ -417,13 +442,16 @@ enumFieldCheck ::
   -> BM.FieldCheck
 enumFieldCheck p mName fn =
   BM.FieldCheck
-    (\(BM.QualifiedName _ tableName) colName ->
+    (\(BM.QualifiedName mSchema tableName) colName ->
        BM.p
-         (BP.PgHasEnum (fromMaybe (enumName tableName colName) mName)
+         (BP.PgHasEnum
+            (BT.QualifiedName
+               mSchema
+               (fromMaybe (mkEnumName tableName colName) mName))
             $ fn <$> constructorNames p))
-  where
-    enumName :: T.Text -> T.Text -> T.Text
-    enumName tblName colName = "enum_" <> tblName <> "_" <> colName
+
+mkEnumName :: T.Text -> T.Text -> T.Text
+mkEnumName tblName colName = "enum_" <> tblName <> "_" <> colName
 
 enumFieldCheckId :: (Generic a, ConNames (Rep a)) => Proxy a -> BT.FieldCheck
 enumFieldCheckId p = enumFieldCheck p Nothing id
@@ -450,3 +478,19 @@ collectTableNames db =
               db
               db
    in a
+
+renameSchemaCheckedDatabaseSetting ::
+     forall db. (B.Database BP.Postgres db)
+  => T.Text
+  -> BM.CheckedDatabaseSettings BP.Postgres db
+  -> BM.CheckedDatabaseSettings BP.Postgres db
+renameSchemaCheckedDatabaseSetting schema checkedDB =
+  runIdentity
+    $ BT.zipTables
+        (Proxy @BP.Postgres)
+        (\(c :: BM.CheckedDatabaseEntity BP.Postgres db entityType) _ ->
+           let (BT.EntityModification endo) =
+                 modifyCheckedEntitySchema (const $ Just schema)
+            in pure $ appEndo endo c)
+        checkedDB
+        checkedDB

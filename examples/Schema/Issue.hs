@@ -55,7 +55,7 @@ instance BA.HasSqlValueSyntax BP.PgValueSyntax IssueStatus where
   sqlValueSyntax = BP.pgEnumValueSyntax show
 
 instance BM.HasDefaultSqlDataType BP.Postgres IssueStatus where
-  defaultSqlDataType _ _ _ = pgEnumerationType "enum_Issues_status"
+  defaultSqlDataType _ _ _ = pgDefaultEnumerationType
   defaultSqlDataTypeConstraints p _ _ = [enumFieldCheckId p]
 
 instance B.Table IssueT where

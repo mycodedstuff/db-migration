@@ -49,16 +49,17 @@ instance (Integral a, Bounded a, BA.HasSqlValueSyntax BP.PgValueSyntax a) =>
 
 instance (Bounded a, Integral a) =>
          BM.HasDefaultSqlDataType BP.Postgres (AutoIncrement a) where
-  defaultSqlDataType _ _ _ = snd $ resolveSequenceType $ toInteger $ maxBound @a
+  defaultSqlDataType _ _ _ _ _ =
+    snd $ resolveSequenceType $ toInteger $ maxBound @a
   defaultSqlDataTypeConstraints _ _ _ =
     let upperBound = toInteger $ maxBound @a
      in [ BM.FieldCheck
             (\tblName colName ->
                BM.p
                  (PgHasSequence
-                    (mkSequenceName tblName colName False) -- This assumes sequence is defined in same schema as table
+                    (mkSequenceName tblName colName) -- This assumes sequence is defined in same schema as table
                     (1, upperBound)
-                    1
+                    0
                     1
                     False
                     (fst $ resolveSequenceType upperBound)))
@@ -71,7 +72,7 @@ instance (Bounded a, Integral a) =>
                     (Sequence
                        $ renderSequenceDefault
                        $ mkTableName
-                       $ mkSequenceName tableName colName True)))
+                       $ mkSequenceName tableName colName)))
         ]
 
 resolveSequenceType ::
@@ -83,10 +84,6 @@ resolveSequenceType upperBound
 
 -- This function create sequence name
 -- It has an option to ignore public schema which is used for column default as postgres drops public schema in sequence names
-mkSequenceName :: BM.QualifiedName -> T.Text -> Bool -> BM.QualifiedName
-mkSequenceName (BM.QualifiedName mSchema tableName) colName ignorePublic =
-  let schema =
-        if ignorePublic && mSchema == Just "public"
-          then Nothing
-          else mSchema
-   in BM.QualifiedName schema (tableName <> "_" <> colName <> "_seq")
+mkSequenceName :: BM.QualifiedName -> T.Text -> BM.QualifiedName
+mkSequenceName (BM.QualifiedName mSchema tableName) colName =
+  BM.QualifiedName mSchema (tableName <> "_" <> colName <> "_seq")

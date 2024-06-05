@@ -32,10 +32,11 @@ data Options = Options
   { schemaName :: !(Maybe T.Text)
   , typeLenient :: !(Maybe ColumnTypeCheck)
   , partitionOptions :: !PartitionOption
+  , ignoreEnumOrder :: !Bool
   }
 
 defaultOptions :: Options
-defaultOptions = Options Nothing Nothing (PartitionOption True HM.empty)
+defaultOptions = Options Nothing Nothing (PartitionOption True HM.empty) False
 
 type PredicateInfo a = Map.Map T.Text a
 
@@ -62,7 +63,7 @@ instance A.FromJSON NumericTypeInfo
 
 data CustomType
   = CustomType
-      { customType :: !A.Value
+      { customType :: !BM.QualifiedName
       }
   | ArrType
       { mod :: !Integer
@@ -109,7 +110,7 @@ data ColumnType
   | JSON
   | Double
   | Bytea
-  | Enum !T.Text
+  | Enum !BM.QualifiedName
   | BigInt
   | SmallInt
   | PgText
@@ -144,7 +145,7 @@ instance A.FromJSON ColumnType where
                       A.Error err -> fail $ "Expected CustomType: " ++ show err
                       A.Success (res :: CustomType) ->
                         case res of
-                          CustomType (A.String enum) -> return $ Enum enum
+                          CustomType name -> return $ Enum name
                           ArrType _mod oid ->
                             if oid == 1015
                               then return
@@ -152,7 +153,6 @@ instance A.FromJSON ColumnType where
                                      $ VarChar
                                      $ CharTypeInfo (Just _mod) Nothing
                               else fail $ "Unhandled oid " ++ show val
-                          _unknown -> fail $ "Unhandled type " ++ show val
               _unhandled -> fail $ "Couldn't parse object " ++ show _unhandled
           _unknown -> fail $ "Expected Object got " ++ show _unknown
 
@@ -207,7 +207,7 @@ newtype TableInfo =
   deriving anyclass (A.FromJSON)
 
 data EnumInfo = EnumInfo
-  { name :: !T.Text
+  { name :: !BM.QualifiedName
   , values :: ![T.Text]
   } deriving (Generic, Show, A.FromJSON, Eq)
 
@@ -262,5 +262,6 @@ data ColumnPredicate = ColumnPredicate
 
 data EnumPredicate = EnumPredicate
   { enumInfo :: !EnumInfo
+  , dependentColumns :: ![(BM.QualifiedName, T.Text, ColumnType)]
   , enumValuesInDB :: ![T.Text]
   } deriving (Generic, Show, Eq)

@@ -76,6 +76,17 @@ partitions =
 schemaDiff conn dbSettings $ defaultOptions {partitionOptions = DBM.PartitionOption True partitions}
 ```
 
+##### 3. Ignore order of Enum values
+
+Option `ignoreEnumOrder` if set to `True` allows to remove differences in enums if the order isn't same as defined in Haskell.
+If this is `False` library will generate queries to rename existing enums and create new and type casting all columns using it.
+By default it's set to False.
+
+Sample Usage
+```haskell
+schemaDiff conn dbSettings $ defaultOptions {ignoreEnumOrder = True}
+```
+
 #### Haskell and Postgres type mapping with db-migration
 | Haskell | Postgres | db-migration (ColumnType) |
 | --- | --- | --- |
@@ -104,9 +115,13 @@ schemaDiff conn dbSettings $ defaultOptions {partitionOptions = DBM.PartitionOpt
 #### Explore
 
 1. Define, identify and sync indexes
-2. Schema specific enums
-3. Report columns defined in database not in Haskell schema
-4. DROP DDL statements
+2. Report columns defined in database not in Haskell schema
+3. DROP DDL statements
+
+#### Caveats
+
+1. If an enum isn't named differently in database then instead of renaming the enum library will create a new enum and alter the columns type.
+2. If a sequence isn't named correctly in database then library will create a new sequence and this new sequence won't have last_val/currval of the existing sequence
 
 #### Notes
 

@@ -3,6 +3,7 @@
 module Database.Migration.Backend.Postgres.Render where
 
 import Data.Char (toLower)
+import qualified Data.Containers.ListUtils as LU
 import qualified Data.Foldable as DF
 import Data.Maybe (fromMaybe)
 import Data.Scientific (FPFormat(Fixed), formatScientific)
@@ -69,6 +70,19 @@ mkAlterSuffix columnName ConstraintInfo {..} =
     NOT_NULL ->
       "alter column " <> quoteIfAnyUpper columnName <> " set not null;"
 
+mkAlterColumnTypeQuery ::
+     BM.QualifiedName -> T.Text -> ColumnType -> ColumnType -> T.Text
+mkAlterColumnTypeQuery tableName columnName _type columnTypeInDB =
+  "alter table "
+    <> mkTableName tableName
+    <> " alter column "
+    <> quoteIfAnyUpper columnName
+    <> " type "
+    <> columnTypeToSqlType _type
+    <> " "
+    <> fromMaybe "" (mkColumnTypeCasting columnName _type columnTypeInDB)
+    <> ";"
+
 instance RenderPredicate BP.Postgres ColumnPredicate where
   mutatePredicate _ dbPreds p@ColumnPredicate {columnName, columnTable} = do
     let cTypeInDB =
@@ -83,18 +97,7 @@ instance RenderPredicate BP.Postgres ColumnPredicate where
         maybe
           []
           (\_type ->
-             [ "alter table "
-                 <> mkTableName tableName
-                 <> " alter column "
-                 <> quoteIfAnyUpper columnName
-                 <> " type "
-                 <> columnTypeToSqlType _type
-                 <> " "
-                 <> fromMaybe
-                      ""
-                      (mkColumnTypeCasting columnName _type cTypeInDB)
-                 <> ";"
-             ])
+             [mkAlterColumnTypeQuery tableName columnName _type cTypeInDB])
           maybeType
           ++ maybe
                []
@@ -165,14 +168,9 @@ mkPrimaryContraintName :: BM.QualifiedName -> T.Text
 mkPrimaryContraintName (BM.QualifiedName _ tableName) = tableName <> "_pkey"
 
 instance RenderPredicate BP.Postgres EnumPredicate where
-  renderQuery (EnumPredicate (EnumInfo name enums) existValues) =
+  renderQuery p@(EnumPredicate e@(EnumInfo name enums) cols existValues) =
     if null existValues
-      then [ "create type "
-               <> quoteIfAnyUpper name
-               <> " as enum ('"
-               <> T.intercalate "', '" enums
-               <> "');"
-           ]
+      then [mkCreateEnumQuery e]
       else let missingEnums =
                  DF.foldr
                    (\cur acc ->
@@ -181,21 +179,67 @@ instance RenderPredicate BP.Postgres EnumPredicate where
                         else acc)
                    []
                    enums
-            in Prelude.map
-                 (\val ->
-                    "alter type "
-                      <> quoteIfAnyUpper name
-                      <> " add value if not exists '"
-                      <> val
-                      <> "';")
-                 missingEnums
+            in if null missingEnums
+                 then case cols of
+                        [] ->
+                          error
+                            $ "An enum can't be reached without any column using it. Enum details: "
+                                ++ show p
+                        c@(_, _, Enum dbEnumName@(BM.QualifiedName sch nm)):cs ->
+                          let renamedEnumName = nm <> "_renamed"
+                           in [ "alter type "
+                                  <> mkTableName dbEnumName
+                                  <> " rename to "
+                                  <> quoteIfAnyUpper renamedEnumName -- This enum can later be dropped, but choosing not to as other schemas can also use it
+                                  <> ";"
+                              , mkCreateEnumQuery (EnumInfo name enums)
+                              ]
+                                ++ map
+                                     (\(tblNm, colNm, _) ->
+                                        mkAlterColumnTypeQuery
+                                          tblNm
+                                          colNm
+                                          (Enum name)
+                                          (Enum
+                                             $ BM.QualifiedName
+                                                 sch
+                                                 renamedEnumName))
+                                     (c : cs)
+                        _notEnum ->
+                          error
+                            $ "Columns aren't of enum type which shouldn't be the case: "
+                                ++ show cols
+                 else Prelude.map
+                        (\val ->
+                           "alter type "
+                             <> mkTableName name
+                             <> " add value if not exists '"
+                             <> val
+                             <> "';")
+                        missingEnums
   mutatePredicate _ dbPreds p@EnumPredicate {enumInfo} = do
     let EnumInfo {name} = enumInfo
-        enumValuesInDB =
-          case LHM.lookup name dbPreds of
-            Just (DBHasEnum (EnumPredicate (EnumInfo _ dbValues) _)) -> dbValues
-            _ignore -> []
-    return $ p {enumValuesInDB = enumValuesInDB}
+        (enumValuesInDB, dependentCols) =
+          case LHM.lookup (mkTableName name) dbPreds of
+            Just (DBHasEnum (EnumPredicate (EnumInfo _ dbValues) cols _)) ->
+              (dbValues, cols)
+            _ignore -> ([], [])
+    return
+      $ p
+          { enumValuesInDB = enumValuesInDB
+          , dependentColumns =
+              LU.nubOrdOn
+                (\(a, b, _) -> (a, b))
+                (dependentColumns p ++ dependentCols)
+          }
+
+mkCreateEnumQuery :: EnumInfo -> T.Text
+mkCreateEnumQuery (EnumInfo name enums) =
+  "create type "
+    <> mkTableName name
+    <> " as enum ('"
+    <> T.intercalate "', '" enums
+    <> "');"
 
 instance RenderPredicate BP.Postgres SequencePredicate where
   renderQuery (SequencePredicate PgHasSequence {..} exists) =

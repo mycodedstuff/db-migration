@@ -5,6 +5,9 @@ import qualified Data.Text as T
 import qualified Database.Beam.Postgres as BP
 import qualified Database.PostgreSQL.Simple as Pg
 
+import Control.Monad (void)
+import Data.Maybe (fromMaybe)
+import qualified Data.Vector as V
 import Database.Migration.Utils.Common
 
 getCurrentDatabase :: BP.Connection -> IO (Maybe T.Text)
@@ -47,3 +50,18 @@ getColumnDefaultsFromPg conn mSchema =
         , "column_default is not null and"
         , "table_schema = '" ++ maybe "public" T.unpack mSchema ++ "';"
         ]
+
+getSearchPath :: BP.Connection -> IO [T.Text]
+getSearchPath conn =
+  fromMaybe [] . headMaybe . fmap (V.toList . Pg.fromOnly)
+    <$> Pg.query_ conn (fromString "select current_schemas(false)")
+
+setSearchPath :: BP.Connection -> [T.Text] -> IO ()
+setSearchPath conn schemas =
+  void
+    $ Pg.execute_
+        conn
+        (fromString
+           $ "set search_path = '"
+               ++ T.unpack (T.intercalate "', '" schemas)
+               ++ "';")

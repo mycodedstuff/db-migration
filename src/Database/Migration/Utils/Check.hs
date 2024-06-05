@@ -4,6 +4,7 @@ import qualified Data.Foldable as DF
 import Data.Maybe (fromMaybe)
 import qualified Data.Text as T
 import qualified Database.Beam.Migrate as BM
+import qualified Data.List as DL
 import Database.Migration.Types
 import qualified Database.Migration.Types.LinkedHashMap as LHM
 import Database.Migration.Utils.Beam
@@ -31,6 +32,14 @@ lenientPredicateCheck Options {typeLenient} pd@(DBTableHasColumns colPreds) grou
        in if LHM.null lenientPreds
             then Nothing
             else Just $ DBTableHasColumns lenientPreds
+lenientPredicateCheck Options {ignoreEnumOrder} pd@(DBHasEnum (EnumPredicate (EnumInfo enumName enumValues) _ _)) groupedDBPredicates =
+  let valuesInDB =
+        case LHM.lookup (mkTableName enumName) groupedDBPredicates of
+          Just (DBHasEnum (EnumPredicate enumInfo _ _)) -> values enumInfo
+          _ignore -> []
+   in if ignoreEnumOrder && DL.sort enumValues == DL.sort valuesInDB
+        then Nothing
+        else Just pd
 lenientPredicateCheck _ p _ = Just p
 
 lenientColumnPredicateCheck ::

@@ -23,13 +23,14 @@ schemaDiff ::
   -> Options
   -> IO (Either String DBDiff)
 schemaDiff conn checkedDB options = do
-  let haskellConstraints =
-        collectPartitionChecks (partitionOptions options) checkedDB
-      mSchema = schemaName options
+  let mSchema = schemaName options
       schema = fromMaybe "public" mSchema
+      renamedCheckedDB = renameSchemaCheckedDatabaseSetting schema checkedDB
       schemaConstraint = BM.SomeDatabasePredicate $ PgHasSchema schema
+      haskellConstraints =
+        schemaConstraint : collectPartitionChecks (partitionOptions options) renamedCheckedDB
   actualPredicates <- getPgConstraintForSchema conn mSchema
-  let expected = HS.fromList $ schemaConstraint : haskellConstraints
+  let expected = HS.fromList haskellConstraints
       actual = HS.fromList actualPredicates
       diff = expected `HS.difference` actual
       groupedDBChecks = groupPredicates actualPredicates

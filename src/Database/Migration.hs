@@ -4,6 +4,7 @@ import qualified Data.Foldable as DF
 import qualified Data.HashSet as HS
 import Data.List (sort)
 import Data.Maybe (fromMaybe)
+import qualified Data.Text as T
 import qualified Database.Beam as B
 import qualified Database.Beam.Migrate.Simple as BM
 import qualified Database.Beam.Postgres as BP
@@ -28,7 +29,8 @@ schemaDiff conn checkedDB options = do
       renamedCheckedDB = renameSchemaCheckedDatabaseSetting schema checkedDB
       schemaConstraint = BM.SomeDatabasePredicate $ PgHasSchema schema
       haskellConstraints =
-        schemaConstraint : collectPartitionChecks (partitionOptions options) renamedCheckedDB
+        schemaConstraint
+          : collectPartitionChecks (partitionOptions options) renamedCheckedDB
   actualPredicates <- getPgConstraintForSchema conn mSchema
   let expected = HS.fromList haskellConstraints
       actual = HS.fromList actualPredicates
@@ -54,6 +56,27 @@ schemaDiff conn checkedDB options = do
         <$> DF.foldlM
               (\acc p ->
                  (acc ++) . renderQuery @BP.Postgres
-                   <$> mutatePredicate @BP.Postgres conn groupedDBChecks p)
+                   <$> mutatePredicate @BP.Postgres (Just conn) groupedDBChecks p)
               []
               lenientPredicates
+
+createSchema ::
+     B.Database BP.Postgres db
+  => Options
+  -> BM.CheckedDatabaseSettings BP.Postgres db
+  -> IO [T.Text]
+createSchema options checkedDB = do
+  let mSchema = schemaName options
+      schema = fromMaybe "public" mSchema
+      renamedCheckedDB = renameSchemaCheckedDatabaseSetting schema checkedDB
+      schemaConstraint = BM.SomeDatabasePredicate $ PgHasSchema schema
+      haskellConstraints =
+        schemaConstraint
+          : collectPartitionChecks (partitionOptions options) renamedCheckedDB
+  let dbPredicates = sort $ LHM.elems $ groupPredicates haskellConstraints
+  DF.foldlM
+    (\acc p ->
+       (acc ++) . renderQuery @BP.Postgres
+         <$> mutatePredicate @BP.Postgres Nothing LHM.empty p)
+    []
+    dbPredicates

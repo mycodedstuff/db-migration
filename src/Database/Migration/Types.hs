@@ -19,7 +19,7 @@ data DBDiff
 class RenderPredicate be p where
   renderQuery :: p -> [T.Text]
   mutatePredicate ::
-       BP.Connection -> LHM.LinkedHashMap T.Text DBPredicate -> p -> IO p
+       Maybe BP.Connection -> LHM.LinkedHashMap T.Text DBPredicate -> p -> IO p
 
 type ColumnTypeCheck = T.Text -> T.Text -> ColumnType -> ColumnType -> Bool
 
@@ -35,8 +35,11 @@ data Options = Options
   , ignoreEnumOrder :: !Bool
   }
 
+defaultPartitionOption :: PartitionOption
+defaultPartitionOption = PartitionOption True HM.empty
+
 defaultOptions :: Options
-defaultOptions = Options Nothing Nothing (PartitionOption True HM.empty) False
+defaultOptions = Options Nothing Nothing defaultPartitionOption False
 
 type PredicateInfo a = Map.Map T.Text a
 

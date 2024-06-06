@@ -59,7 +59,7 @@ instance (Bounded a, Integral a) =>
                  (PgHasSequence
                     (mkSequenceName tblName colName) -- This assumes sequence is defined in same schema as table
                     (1, upperBound)
-                    0
+                    1
                     1
                     False
                     (fst $ resolveSequenceType upperBound)))

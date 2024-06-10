@@ -335,7 +335,7 @@ upsertColumnPredicate p =
 constraintTypeToSqlSyntax :: ConstraintInfo -> T.Text -> T.Text
 constraintTypeToSqlSyntax ConstraintInfo {..} columnName =
   case constraint of
-    NOT_NULL -> "alter column " <> quoteIfAnyUpper columnName <> " set not null"
+    NOT_NULL -> "alter column " <> quote columnName <> " set not null"
 
 modifyCheckedEntitySchema ::
      BT.IsDatabaseEntity be entity

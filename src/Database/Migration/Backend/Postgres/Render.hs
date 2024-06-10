@@ -25,7 +25,7 @@ mkConstraintTypeToSqlSyntax ColumnConstraintInfo {..} =
 mkColumnForCreateTable :: ColumnPredicate -> T.Text
 mkColumnForCreateTable (ColumnPredicate name _ (Just _type) constraints maybePKey mDefault _) =
   T.intercalate " "
-    $ [quoteIfAnyUpper name, columnTypeToSqlType _type]
+    $ [quote name, columnTypeToSqlType _type]
         ++ fmap mkConstraintTypeToSqlSyntax constraints
         ++ maybe [] (const ["primary key"]) maybePKey
         ++ maybe [] (\d -> ["default", mkDefault d]) mDefault
@@ -43,7 +43,7 @@ instance RenderPredicate BP.Postgres TablePredicate where
                    <> " add constraint "
                    <> quoteIfAnyUpper (mkPrimaryContraintName table)
                    <> " primary key ("
-                   <> T.intercalate ", " (quoteIfAnyUpper <$> columns)
+                   <> T.intercalate ", " (quote <$> columns)
                    <> ");"
                ]
              Nothing ->
@@ -58,7 +58,7 @@ instance RenderPredicate BP.Postgres TablePredicate where
                     ""
                     (\(PrimaryKeyInfo _ pColumns) ->
                        "primary key ("
-                         <> T.intercalate ", " (quoteIfAnyUpper <$> pColumns)
+                         <> T.intercalate ", " (quote <$> pColumns)
                          <> ")")
                     maybePKey
                <> ");"
@@ -68,7 +68,7 @@ mkAlterSuffix :: T.Text -> ConstraintInfo -> T.Text
 mkAlterSuffix columnName ConstraintInfo {..} =
   case constraint of
     NOT_NULL ->
-      "alter column " <> quoteIfAnyUpper columnName <> " set not null;"
+      "alter column " <> quote columnName <> " set not null;"
 
 mkAlterColumnTypeQuery ::
      BM.QualifiedName -> T.Text -> ColumnType -> ColumnType -> T.Text
@@ -76,7 +76,7 @@ mkAlterColumnTypeQuery tableName columnName _type columnTypeInDB =
   "alter table "
     <> mkTableName tableName
     <> " alter column "
-    <> quoteIfAnyUpper columnName
+    <> quote columnName
     <> " type "
     <> columnTypeToSqlType _type
     <> " "
@@ -107,7 +107,7 @@ instance RenderPredicate BP.Postgres ColumnPredicate where
                       [ "alter table"
                       , mkTableName tableName
                       , "alter column"
-                      , quoteIfAnyUpper columnName
+                      , quote columnName
                       , "set default"
                       , mkDefault _default
                       ]
@@ -131,7 +131,7 @@ instance RenderPredicate BP.Postgres ColumnPredicate where
                       <> " add constraint "
                       <> quoteIfAnyUpper (mkPrimaryContraintName table)
                       <> " primary key ("
-                      <> T.intercalate ", " (quoteIfAnyUpper <$> columns)
+                      <> T.intercalate ", " (quote <$> columns)
                       <> ");"
                   ])
                maybePKey

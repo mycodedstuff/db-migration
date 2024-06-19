@@ -10,6 +10,7 @@ import Data.Scientific (FPFormat(Fixed), formatScientific)
 import qualified Data.Text as T
 import qualified Database.Beam.Migrate.Types as BM
 import qualified Database.Beam.Postgres as BP
+import qualified Database.Beam.Schema.Tables as BT
 
 import Database.Migration.Predicate
 import Database.Migration.Types
@@ -67,8 +68,7 @@ instance RenderPredicate BP.Postgres TablePredicate where
 mkAlterSuffix :: T.Text -> ConstraintInfo -> T.Text
 mkAlterSuffix columnName ConstraintInfo {..} =
   case constraint of
-    NOT_NULL ->
-      "alter column " <> quote columnName <> " set not null;"
+    NOT_NULL -> "alter column " <> quote columnName <> " set not null;"
 
 mkAlterColumnTypeQuery ::
      BM.QualifiedName -> T.Text -> ColumnType -> ColumnType -> T.Text
@@ -295,6 +295,25 @@ instance RenderPredicate BP.Postgres PgHasSchema where
   renderQuery PgHasSchema {schemaName} =
     ["create schema if not exists " <> quoteIfAnyUpper schemaName <> ";"]
 
+instance RenderPredicate BP.Postgres TableHasIndexPredicate where
+  mutatePredicate _ _ p = return p -- TODO: Check for existing indexes with different name, find a way to make it less expensive
+  renderQuery TableHasIndexPredicate {..} =
+    [ "create"
+        <> maybe mempty ((" " <>) . renderIndexConstraint) indexConstraint
+        <> " index concurrently if not exists "
+        <> quote indexName
+        <> " on "
+        <> mkTableName tableName
+        <> " (\""
+        <> T.intercalate "\", \"" indexColumns
+        <> "\")"
+        <> maybe mempty (" where " <>) indexPredicate
+        <> ";"
+    ]
+
+renderIndexConstraint :: BT.IndexConstraint -> T.Text
+renderIndexConstraint BT.UNIQUE = "unique"
+
 instance RenderPredicate BP.Postgres DBPredicate where
   renderQuery =
     \case
@@ -303,6 +322,7 @@ instance RenderPredicate BP.Postgres DBPredicate where
       DBHasEnum p -> renderQuery @BP.Postgres p
       DBHasSequence p -> renderQuery @BP.Postgres p
       DBHasSchema p -> renderQuery @BP.Postgres p
+      DBTableHasIndex p -> renderQuery @BP.Postgres p
   mutatePredicate conn predMap =
     \case
       DBHasTable p -> DBHasTable <$> mutatePredicate @BP.Postgres conn predMap p
@@ -313,3 +333,5 @@ instance RenderPredicate BP.Postgres DBPredicate where
         DBHasSequence <$> mutatePredicate @BP.Postgres conn predMap p
       DBHasSchema p ->
         DBHasSchema <$> mutatePredicate @BP.Postgres conn predMap p
+      DBTableHasIndex p ->
+        DBTableHasIndex <$> mutatePredicate @BP.Postgres conn predMap p

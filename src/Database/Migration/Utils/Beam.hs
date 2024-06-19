@@ -23,7 +23,9 @@ import Generics.Deriving (ConNames)
 import Lens.Micro ((%~), (^.))
 import Text.Read (readMaybe)
 
+import Data.ByteString.Lazy (toStrict)
 import Data.Function ((&))
+import qualified Database.Beam.Backend as BA
 import qualified Database.Beam.Migrate.Types as BT
 import Database.Migration.Predicate
   ( ColumnDefault(..)
@@ -107,6 +109,7 @@ groupPredicates =
          "PgHasSequence" -> groupSequencePredicate predicate acc
          "TableColumnHasDefault" -> groupColumnDefaultPredicate predicate acc
          "PgHasSchema" -> groupPgHasSchemaPredicate predicate acc
+         "TableHasIndex" -> groupTableHasIndexPredicate predicate acc
          _ -> acc)
     LHM.empty
 
@@ -315,6 +318,24 @@ groupPgHasSchemaPredicate predicate acc =
   let schemaPredicate@PgHasSchema {schemaName} = parsePgHasSchema predicate
    in LHM.insert schemaName (DBHasSchema schemaPredicate) acc
 
+groupTableHasIndexPredicate ::
+     BM.SomeDatabasePredicate
+  -> LHM.LinkedHashMap T.Text DBPredicate
+  -> LHM.LinkedHashMap T.Text DBPredicate
+groupTableHasIndexPredicate predicate acc =
+  let IndexPredicate {..} = parseIndexPredicate predicate
+   in LHM.insert
+        _name
+        (DBTableHasIndex
+           $ TableHasIndexPredicate
+               _table
+               _name
+               _constraint
+               _columns
+               _predicate
+               Nothing)
+        acc
+
 upsertColumnPredicate ::
      ColumnPredicate
   -> LHM.LinkedHashMap T.Text ColumnPredicate
@@ -434,6 +455,9 @@ unCheckFieldModification fm =
         fm
         fm
 
+-- Function to define enum check on a sum type
+-- This function automatically derives construct names and uses then as enum value
+-- The constructor names can be modified by supplying a function
 enumFieldCheck ::
      (Generic a, ConNames (Rep a))
   => Proxy a
@@ -494,3 +518,90 @@ renameSchemaCheckedDatabaseSetting schema checkedDB =
             in pure $ appEndo endo c)
         checkedDB
         checkedDB
+
+-- Functions to define indexes for a table
+defaultIndex :: T.Text -> [BT.IndexColumn] -> BT.TableIndex
+defaultIndex tblName columns =
+  BT.TableIndex
+    (mkIndexName tblName columns)
+    Nothing
+    (getFieldName <$> columns)
+    Nothing
+
+uniqueIndex :: T.Text -> [BT.IndexColumn] -> BT.TableIndex
+uniqueIndex tblName columns =
+  BT.TableIndex
+    (mkIndexName tblName columns)
+    (Just BT.UNIQUE)
+    (getFieldName <$> columns)
+    Nothing
+
+defaultIndexWithPred ::
+     BT.Beamable table
+  => T.Text
+  -> BT.TableSettings table
+  -> [BT.IndexColumn]
+  -> (table (B.QGenExpr context BP.Postgres s) -> B.QGenExpr
+                                                    context
+                                                    BP.Postgres
+                                                    s
+                                                    bool)
+  -> BT.TableIndex
+defaultIndexWithPred indexName tbl columns predicate =
+  BT.TableIndex indexName Nothing (getFieldName <$> columns)
+    $ Just
+    $ mkIndexPredicate tbl predicate
+
+uniqueIndexWithPred ::
+     BT.Beamable table
+  => T.Text
+  -> BT.TableSettings table
+  -> [BT.IndexColumn]
+  -> (table (B.QGenExpr context BP.Postgres s) -> B.QGenExpr
+                                                    context
+                                                    BP.Postgres
+                                                    s
+                                                    bool)
+  -> BT.TableIndex
+uniqueIndexWithPred indexName tbl columns predicate =
+  BT.TableIndex indexName (Just BT.UNIQUE) (getFieldName <$> columns)
+    $ Just
+    $ mkIndexPredicate tbl predicate
+
+-- Helper functions for index definition
+getFieldName :: BT.IndexColumn -> T.Text
+getFieldName (BT.IC b) = b ^. B.fieldName
+
+mkIndexPredicate ::
+     BT.Beamable table
+  => table (BT.TableField table)
+  -> (table (B.QGenExpr context BP.Postgres s) -> B.QGenExpr
+                                                    context
+                                                    BP.Postgres
+                                                    s
+                                                    bool)
+  -> T.Text
+mkIndexPredicate tblFields predicateFn =
+  let B.QExpr exprFn = predicateFn $ tableFieldsToExpressions tblFields
+   in DTE.decodeUtf8
+        $ toStrict
+        $ BP.pgRenderSyntaxScript
+        $ BP.fromPgExpression
+        $ exprFn mempty
+
+mkIndexName :: T.Text -> [BT.IndexColumn] -> T.Text
+mkIndexName tblName columns =
+  tblName <> "_" <> T.intercalate "_" (map getFieldName columns) <> "_idx"
+
+-- Converts a TableSettings table (table (TableField table)) type to table (B.QGenExpr ctxt be s)
+-- so that it can be used to construct where clause
+-- This function construct where clause which ignores table alias if any using unqualifiedField function
+tableFieldsToExpressions ::
+     (BA.BeamSqlBackend be, BT.Beamable table)
+  => BT.TableSettings table
+  -> table (B.QGenExpr ctxt be s)
+tableFieldsToExpressions =
+  BT.changeBeamRep
+    (\(BT.Columnar' f) ->
+       BT.Columnar'
+         (B.QExpr (const (BA.fieldE $ BA.unqualifiedField $ f ^. B.fieldName))))

@@ -56,7 +56,10 @@ schemaDiff conn checkedDB options = do
         <$> DF.foldlM
               (\acc p ->
                  (acc ++) . renderQuery @BP.Postgres
-                   <$> mutatePredicate @BP.Postgres (Just conn) groupedDBChecks p)
+                   <$> mutatePredicate @BP.Postgres
+                         (Just conn)
+                         groupedDBChecks
+                         p)
               []
               lenientPredicates
 

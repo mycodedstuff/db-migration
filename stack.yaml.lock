@@ -7,55 +7,66 @@ packages:
 - completed:
     name: beam-core
     pantry-tree:
-      sha256: 52fe505a13a4661925467171224b8b7af66c245b38b4a85312c5417d0b96961c
+      sha256: 65de5528325661288d67baa7a8a5cdc70ece3d1a7c055e652965a79a3ad5c17e
       size: 2623
-    sha256: 14fd75cebf86975c8ec869a1f786f71db1d9d064ea0e0a69884659fb1068f73d
-    size: 1202208
+    sha256: 4e36ce5e8ee4baab77a9ccbd5a504abdb5d40f024dd93bad0b0714336b2735e7
+    size: 1205592
     subdir: beam-core
-    url: https://github.com/mycodedstuff/beam/archive/4e043802ed011b91bbd8a47d255b02a41ba51f2d.tar.gz
+    url: https://github.com/mycodedstuff/beam/archive/26eebb4ad6178222848f67441d416df261f012d8.tar.gz
     version: 0.9.0.0
   original:
     subdir: beam-core
-    url: https://github.com/mycodedstuff/beam/archive/4e043802ed011b91bbd8a47d255b02a41ba51f2d.tar.gz
+    url: https://github.com/mycodedstuff/beam/archive/26eebb4ad6178222848f67441d416df261f012d8.tar.gz
 - completed:
     name: beam-migrate
     pantry-tree:
-      sha256: 6364169731c873116a5b6e69867184c49acbf71ab7e51a660bdc9ccf99dec6cd
-      size: 1825
-    sha256: 14fd75cebf86975c8ec869a1f786f71db1d9d064ea0e0a69884659fb1068f73d
-    size: 1202208
+      sha256: 330d1623467b5ce7bcd18d4fb4e2937305a8d36f59b11b9a27d28a58d4169833
+      size: 1826
+    sha256: 4e36ce5e8ee4baab77a9ccbd5a504abdb5d40f024dd93bad0b0714336b2735e7
+    size: 1205592
     subdir: beam-migrate
-    url: https://github.com/mycodedstuff/beam/archive/4e043802ed011b91bbd8a47d255b02a41ba51f2d.tar.gz
+    url: https://github.com/mycodedstuff/beam/archive/26eebb4ad6178222848f67441d416df261f012d8.tar.gz
     version: 0.5.0.0
   original:
     subdir: beam-migrate
-    url: https://github.com/mycodedstuff/beam/archive/4e043802ed011b91bbd8a47d255b02a41ba51f2d.tar.gz
+    url: https://github.com/mycodedstuff/beam/archive/26eebb4ad6178222848f67441d416df261f012d8.tar.gz
 - completed:
     name: beam-postgres
     pantry-tree:
-      sha256: d7a09ab3522cd5d141cd0ca7d597c98c8c0189673724b8bd9c902dc2b623fdf8
+      sha256: ec70d4ccce680df23d3e3742472274a7b3957e04ee17925928b03344e743c4e7
       size: 2594
-    sha256: 14fd75cebf86975c8ec869a1f786f71db1d9d064ea0e0a69884659fb1068f73d
-    size: 1202208
+    sha256: 4e36ce5e8ee4baab77a9ccbd5a504abdb5d40f024dd93bad0b0714336b2735e7
+    size: 1205592
     subdir: beam-postgres
-    url: https://github.com/mycodedstuff/beam/archive/4e043802ed011b91bbd8a47d255b02a41ba51f2d.tar.gz
+    url: https://github.com/mycodedstuff/beam/archive/26eebb4ad6178222848f67441d416df261f012d8.tar.gz
     version: 0.5.0.0
   original:
     subdir: beam-postgres
-    url: https://github.com/mycodedstuff/beam/archive/4e043802ed011b91bbd8a47d255b02a41ba51f2d.tar.gz
+    url: https://github.com/mycodedstuff/beam/archive/26eebb4ad6178222848f67441d416df261f012d8.tar.gz
 - completed:
     name: beam-sqlite
     pantry-tree:
       sha256: 3de1879fca8bcacf4a55f97b27d6525946820cbadd3f2d2f5c83e083a562a319
       size: 859
-    sha256: 14fd75cebf86975c8ec869a1f786f71db1d9d064ea0e0a69884659fb1068f73d
-    size: 1202208
+    sha256: 4e36ce5e8ee4baab77a9ccbd5a504abdb5d40f024dd93bad0b0714336b2735e7
+    size: 1205592
     subdir: beam-sqlite
-    url: https://github.com/mycodedstuff/beam/archive/4e043802ed011b91bbd8a47d255b02a41ba51f2d.tar.gz
+    url: https://github.com/mycodedstuff/beam/archive/26eebb4ad6178222848f67441d416df261f012d8.tar.gz
     version: 0.5.0.0
   original:
     subdir: beam-sqlite
-    url: https://github.com/mycodedstuff/beam/archive/4e043802ed011b91bbd8a47d255b02a41ba51f2d.tar.gz
+    url: https://github.com/mycodedstuff/beam/archive/26eebb4ad6178222848f67441d416df261f012d8.tar.gz
+- completed:
+    name: flatparse
+    pantry-tree:
+      sha256: 1f95e198caad2ee70192c74151dac312d526dc46b39f8484e7e3bef268d0ad12
+      size: 2994
+    sha256: 4f99e06349be6505e4e1158eca0a5400fbe82b9b779b5bb720882f4735f52be3
+    size: 61201
+    url: https://github.com/AndrasKovacs/flatparse/archive/7ec336cd75bc2e66b089d27a87a5490c08ce9446.tar.gz
+    version: 0.5.1.0
+  original:
+    url: https://github.com/AndrasKovacs/flatparse/archive/7ec336cd75bc2e66b089d27a87a5490c08ce9446.tar.gz
 snapshots:
 - completed:
     sha256: 428ec8d5ce932190d3cbe266b9eb3c175cd81e984babf876b64019e2cbe4ea68

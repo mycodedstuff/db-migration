@@ -6,6 +6,7 @@ import qualified Data.Map.Strict as Map
 import qualified Data.Text as T
 import qualified Database.Beam.Migrate as BM
 import qualified Database.Beam.Postgres as BP
+import qualified Database.Beam.Schema.Tables as BT
 import GHC.Generics
 
 import qualified Database.Migration.Predicate as MP
@@ -234,6 +235,7 @@ data DBPredicate
   | DBHasTable !TablePredicate
   | DBTableHasColumns !(LHM.LinkedHashMap T.Text ColumnPredicate)
   | DBHasSchema !MP.PgHasSchema
+  | DBTableHasIndex !TableHasIndexPredicate
   deriving (Generic, Show, Eq)
 
 instance Ord DBPredicate where
@@ -244,14 +246,16 @@ instance Ord DBPredicate where
       (DBHasEnum _, _) -> LT
       (DBHasSequence _, DBHasSchema _) -> GT
       (DBHasSequence _, DBHasEnum _) -> GT
-      (DBHasSequence _, DBHasTable _) -> LT
-      (DBHasSequence _, DBTableHasColumns _) -> LT
+      (DBHasSequence _, _) -> LT
       (DBHasTable _, DBHasSchema _) -> GT
       (DBHasTable _, DBHasEnum _) -> GT
       (DBHasTable _, DBHasSequence _) -> GT
-      (DBHasTable _, DBTableHasColumns _) -> LT
-      (DBTableHasColumns _, _) -> GT
-      _same -> EQ
+      (DBHasTable _, _) -> LT
+      (DBTableHasColumns _, DBHasSchema _) -> GT
+      (DBTableHasColumns _, DBHasEnum _) -> GT
+      (DBTableHasColumns _, DBHasSequence _) -> GT
+      (DBTableHasColumns _, _) -> LT
+      (DBTableHasIndex _, _) -> GT
 
 data ColumnPredicate = ColumnPredicate
   { columnName :: !T.Text
@@ -268,3 +272,40 @@ data EnumPredicate = EnumPredicate
   , dependentColumns :: ![(BM.QualifiedName, T.Text, ColumnType)]
   , enumValuesInDB :: ![T.Text]
   } deriving (Generic, Show, Eq)
+
+data IndexPredicate = IndexPredicate
+  { _table :: !BM.QualifiedName
+  , _name :: !T.Text
+  , _constraint :: !(Maybe BT.IndexConstraint)
+  , _columns :: ![T.Text]
+  , _predicate :: !(Maybe T.Text)
+  } deriving (Generic, Show, Eq)
+
+instance A.FromJSON IndexPredicate where
+  parseJSON =
+    A.genericParseJSON $ A.defaultOptions {A.fieldLabelModifier = drop 1}
+
+data TableHasIndexPredicate = TableHasIndexPredicate
+  { tableName :: !BM.QualifiedName
+  , indexName :: !T.Text
+  , indexConstraint :: !(Maybe BT.IndexConstraint)
+  , indexColumns :: ![T.Text]
+  , indexPredicate :: !(Maybe T.Text)
+  , existingIndex :: !(Maybe T.Text)
+  } deriving (Generic, Show, Eq)
+
+-- Attempt to introduce index declaration in db-migration instead of beam
+class BT.IsDatabaseEntity be entity =>
+      IndexesTable be entity
+  where
+  indexes :: BM.CheckedDatabaseEntityDescriptor be entity -> [BT.TableIndex]
+
+instance (BT.Beamable tbl, TableIndexed tbl) =>
+         IndexesTable BP.Postgres (BT.TableEntity tbl) where
+  indexes (BM.CheckedDatabaseTable desc _ _ _) =
+    tableIndex @tbl $ BT.dbTableSettings desc
+
+class BT.Beamable tbl =>
+      TableIndexed tbl
+  where
+  tableIndex :: BT.TableSettings tbl -> [BT.TableIndex]

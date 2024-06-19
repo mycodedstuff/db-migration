@@ -10,6 +10,7 @@ import qualified Database.Beam.Migrate as BM
 import qualified Database.Beam.Postgres as BP
 import qualified Database.Beam.Postgres.CustomTypes as BP
 import qualified Database.Beam.Postgres.Syntax as BP
+import qualified Database.Beam.Schema.Tables as BT
 import qualified Database.PostgreSQL.Simple.FromField as PS
 import GHC.Generics (Generic)
 
@@ -17,6 +18,7 @@ import Database.Migration.Utils.Beam
 
 data IssueT f = Issue
   { _id :: !(B.C f Text)
+  , _ticketNo :: !(B.C f Int)
   , _message :: !(B.C f Text)
   , _status :: !(B.C f IssueStatus)
   , _image :: !(B.C f (Maybe BS.ByteString))
@@ -63,6 +65,18 @@ instance B.Table IssueT where
     IssuePrimaryKey (B.C f Text)
     deriving (Generic, B.Beamable)
   primaryKey = IssuePrimaryKey . _id
+  tableIndexes tblName tblFields@Issue {..} =
+    [ uniqueIndex tblName [BT.IC _ticketNo]
+    , defaultIndexWithPred
+        (tblName <> "_ticketNo_customIdx")
+        tblFields
+        [BT.IC _ticketNo] $ \Issue {..} ->
+        _status
+          B.==. B.val_ RAISED
+          B.&&. _message
+          B.==. B.val_ "dummy"
+          B.||. B.isNothing_ _store
+    ]
 
 issueEMod ::
      Text
@@ -77,6 +91,7 @@ issueEMod tableName schemaName =
          (const tableName)
          BM.checkedTableModification
            { _id = "id"
+           , _ticketNo = "ticketNo"
            , _message = "message"
            , _status = "status"
            , _image = "image"

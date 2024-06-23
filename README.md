@@ -128,6 +128,7 @@ instance B.Table IssueT where
     ]
 ```
 There are few helper functions to define indexes safely `uniqueIndex`, `defaultIndex`, `uniqueIndexWithPred`, `defaultIndexWithPred`.
+The option `ignoreIndexName` can be set if you don't want to validate index names
 > Note: This feature only works with the fork of [beam](https://github.com/mycodedstuff/beam)
 
 #### Haskell and Postgres type mapping with db-migration
@@ -163,7 +164,7 @@ There are few helper functions to define indexes safely `uniqueIndex`, `defaultI
 
 #### Caveats
 
-1. If an enum isn't named differently in database then instead of renaming the enum library will create a new enum and alter the columns type.
+1. If an enum isn't named differently in database then instead of renaming the enum, this library will create a new enum and alter the columns type.
 2. If a sequence isn't named correctly in database then library will create a new sequence and this new sequence won't have last_val/currval of the existing sequence
 
 #### Notes

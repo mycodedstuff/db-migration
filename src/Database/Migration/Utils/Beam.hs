@@ -645,3 +645,27 @@ tableFieldsToExpressions =
     (\(BT.Columnar' f) ->
        BT.Columnar'
          (B.QExpr (const (BA.fieldE $ BA.unqualifiedField $ f ^. B.fieldName))))
+
+-- This function compares all the fields of TableHasIndexPredicate except the index name
+-- to find if an index already exists with some other name
+-- The first argument takes predicates collected from database
+-- Second argument is the predicate we want to find in database predicates
+-- TODO: Make index lookup less expensive (Approach: derive key name based on TableHasIndexPredicate props for groupedDBPredicates)
+findIndexInDBPredicates ::
+     TableHasIndexPredicate
+  -> LHM.LinkedHashMap T.Text DBPredicate
+  -> Maybe TableHasIndexPredicate
+findIndexInDBPredicates pd groupedDBPredicates =
+  let mPred =
+        DF.find
+          (\case
+             DBTableHasIndex p ->
+               indexColumns p == indexColumns pd
+                 && tableName p == tableName pd
+                 && indexPredicate p == indexPredicate pd
+                 && indexConstraint p == indexConstraint pd
+             _ignore -> False)
+          $ LHM.elems groupedDBPredicates
+   in case mPred of
+        Just (DBTableHasIndex p) -> Just p
+        _ignore -> Nothing

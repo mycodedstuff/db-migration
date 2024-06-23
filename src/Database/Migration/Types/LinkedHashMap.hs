@@ -72,7 +72,6 @@ fromList list =
 map :: (a -> b) -> LinkedHashMap k a -> LinkedHashMap k b
 map f (LinkedHashMap hMap seq) = LinkedHashMap hMap $ f <$> seq
 
-
 adjust :: (Eq k, Hashable k) => (v -> v) -> k -> LinkedHashMap k v -> LinkedHashMap k v
 adjust fn key (LinkedHashMap hMap seq) =
   case HM.lookup key hMap of

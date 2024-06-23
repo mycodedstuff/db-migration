@@ -34,13 +34,14 @@ data Options = Options
   , typeLenient :: !(Maybe ColumnTypeCheck)
   , partitionOptions :: !PartitionOption
   , ignoreEnumOrder :: !Bool
+  , ignoreIndexName :: !Bool
   }
 
 defaultPartitionOption :: PartitionOption
 defaultPartitionOption = PartitionOption True HM.empty
 
 defaultOptions :: Options
-defaultOptions = Options Nothing Nothing defaultPartitionOption False
+defaultOptions = Options Nothing Nothing defaultPartitionOption False False
 
 -- | A type used to wrap columns for defining indexes
 data IndexColumn where

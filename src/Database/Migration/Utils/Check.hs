@@ -1,10 +1,10 @@
 module Database.Migration.Utils.Check where
 
 import qualified Data.Foldable as DF
-import Data.Maybe (fromMaybe)
+import qualified Data.List as DL
+import Data.Maybe (fromMaybe, isJust)
 import qualified Data.Text as T
 import qualified Database.Beam.Migrate as BM
-import qualified Data.List as DL
 import Database.Migration.Types
 import qualified Database.Migration.Types.LinkedHashMap as LHM
 import Database.Migration.Utils.Beam
@@ -40,6 +40,10 @@ lenientPredicateCheck Options {ignoreEnumOrder} pd@(DBHasEnum (EnumPredicate (En
    in if ignoreEnumOrder && DL.sort enumValues == DL.sort valuesInDB
         then Nothing
         else Just pd
+lenientPredicateCheck Options {ignoreIndexName} pd@(DBTableHasIndex p) groupedDBPredicates =
+  if ignoreIndexName && lenientIndexPredicateCheck p groupedDBPredicates
+    then Nothing
+    else Just pd
 lenientPredicateCheck _ p _ = Just p
 
 lenientColumnPredicateCheck ::
@@ -59,3 +63,7 @@ lenientColumnPredicateCheck lenientTypeCheck p groupedDBPredicates = do
         cType <- columnType p
         return $ lenientTypeCheck tblName colName cType dbCType
       _ignore -> Nothing
+
+lenientIndexPredicateCheck ::
+     TableHasIndexPredicate -> LHM.LinkedHashMap T.Text DBPredicate -> Bool
+lenientIndexPredicateCheck tp gp = isJust $ findIndexInDBPredicates tp gp

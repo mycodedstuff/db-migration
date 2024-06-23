@@ -296,20 +296,34 @@ instance RenderPredicate BP.Postgres PgHasSchema where
     ["create schema if not exists " <> quoteIfAnyUpper schemaName <> ";"]
 
 instance RenderPredicate BP.Postgres TableHasIndexPredicate where
-  mutatePredicate _ _ p = return p -- TODO: Check for existing indexes with different name, find a way to make it less expensive
+  mutatePredicate _ dbPreds p =
+    case findIndexInDBPredicates p dbPreds of
+      Just tp -> return $ p {existingIndex = Just $ indexName tp}
+      Nothing -> return p
   renderQuery TableHasIndexPredicate {..} =
-    [ "create"
-        <> maybe mempty ((" " <>) . renderIndexConstraint) indexConstraint
-        <> " index concurrently if not exists "
-        <> quote indexName
-        <> " on "
-        <> mkTableName tableName
-        <> " (\""
-        <> T.intercalate "\", \"" indexColumns
-        <> "\")"
-        <> maybe mempty (" where " <>) indexPredicate
-        <> ";"
-    ]
+    case existingIndex of
+      Just oldIndex ->
+        let BM.QualifiedName mSch _ = tableName
+         in [ "alter index if exists "
+                <> maybe mempty ((<> ".") . quoteIfAnyUpper) mSch
+                <> quote oldIndex
+                <> " rename to "
+                <> quote indexName
+                <> ";"
+            ]
+      Nothing ->
+        [ "create"
+            <> maybe mempty ((" " <>) . renderIndexConstraint) indexConstraint
+            <> " index concurrently if not exists "
+            <> quote indexName
+            <> " on "
+            <> mkTableName tableName
+            <> " (\""
+            <> T.intercalate "\", \"" indexColumns
+            <> "\")"
+            <> maybe mempty (" where " <>) indexPredicate
+            <> ";"
+        ]
 
 renderIndexConstraint :: BT.IndexConstraint -> T.Text
 renderIndexConstraint BT.UNIQUE = "unique"

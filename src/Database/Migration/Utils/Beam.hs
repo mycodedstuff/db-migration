@@ -1,10 +1,13 @@
 module Database.Migration.Utils.Beam where
 
 import Control.Applicative ((<|>))
+import Control.Monad.Free.Church (runF)
 import Control.Monad.Writer
 import qualified Data.Aeson as A
+import Data.ByteString.Lazy (toStrict)
 import Data.Char (toUpper)
 import qualified Data.Foldable as DF
+import Data.Function ((&))
 import Data.Functor.Identity (Identity(..))
 import qualified Data.HashMap.Strict as HM
 import Data.Kind
@@ -14,18 +17,16 @@ import qualified Data.Text as T
 import qualified Data.Text.Encoding as DTE
 import Data.Typeable (typeOf)
 import qualified Database.Beam as B
+import qualified Database.Beam.Backend as BA
 import qualified Database.Beam.Migrate.Types as BM
 import qualified Database.Beam.Postgres as BP
 import qualified Database.Beam.Postgres.Syntax as BP
 import qualified Database.Beam.Schema.Tables as BT
 import GHC.Generics (Generic(..))
-import Generics.Deriving (ConNames)
+import Generics.Deriving (Enum', genumDefault)
 import Lens.Micro ((%~), (^.))
 import Text.Read (readMaybe)
 
-import Data.ByteString.Lazy (toStrict)
-import Data.Function ((&))
-import qualified Database.Beam.Backend as BA
 import qualified Database.Beam.Migrate.Types as BT
 import Database.Migration.Predicate
   ( ColumnDefault(..)
@@ -456,15 +457,20 @@ unCheckFieldModification fm =
         fm
 
 -- Function to define enum check on a sum type
--- This function automatically derives construct names and uses then as enum value
--- The constructor names can be modified by supplying a function
+-- This function takes Proxy a as input where a is the enum type
+-- and optionally a name for enum if not present it's auto derived
+-- It uses genumDefault to get all constructor values as array
+-- which gets rendered using HasSqlValueSyntax instance
 enumFieldCheck ::
-     (Generic a, ConNames (Rep a))
+     forall a.
+     ( Generic a
+     , Enum' (Rep a)
+     , BA.HasSqlValueSyntax BP.PgValueSyntax a
+     )
   => Proxy a
   -> Maybe T.Text
-  -> (T.Text -> T.Text)
   -> BM.FieldCheck
-enumFieldCheck p mName fn =
+enumFieldCheck _ mName =
   BM.FieldCheck
     (\(BM.QualifiedName mSchema tableName) colName ->
        BM.p
@@ -472,17 +478,35 @@ enumFieldCheck p mName fn =
             (BT.QualifiedName
                mSchema
                (fromMaybe (mkEnumName tableName colName) mName))
-            $ fn <$> constructorNames p))
+            $ renderSqlValueSyntax <$> genumDefault @a))
 
 mkEnumName :: T.Text -> T.Text -> T.Text
 mkEnumName tblName colName = "enum_" <> tblName <> "_" <> colName
 
-enumFieldCheckId :: (Generic a, ConNames (Rep a)) => Proxy a -> BT.FieldCheck
-enumFieldCheckId p = enumFieldCheck p Nothing id
+enumFieldCheckId ::
+     (Generic a, Enum' (Rep a), BA.HasSqlValueSyntax BP.PgValueSyntax a)
+  => Proxy a
+  -> BT.FieldCheck
+enumFieldCheckId p = enumFieldCheck p Nothing
 
 enumFieldCheckWithName ::
-     (Generic a, ConNames (Rep a)) => Proxy a -> T.Text -> BT.FieldCheck
-enumFieldCheckWithName p name = enumFieldCheck p (Just name) id
+     (Generic a, Enum' (Rep a), BA.HasSqlValueSyntax BP.PgValueSyntax a)
+  => Proxy a
+  -> T.Text
+  -> BT.FieldCheck
+enumFieldCheckWithName p name = enumFieldCheck p (Just name)
+
+-- Helper function to render an enum type using HasSqlValueSyntax instance
+renderSqlValueSyntax :: BA.HasSqlValueSyntax BP.PgValueSyntax ty => ty -> T.Text
+renderSqlValueSyntax val =
+  let BP.PgValueSyntax (BP.PgSyntax syntax) = BA.sqlValueSyntax val
+   in runF
+        syntax
+        (\_ -> error "Expecting a simple text encoding for enumeration type")
+        (\case
+           BP.EmitByteString "'" next -> next
+           BP.EscapeString s _ -> DTE.decodeUtf8 s
+           _err -> error "Expecting a simple text encoding for enumeration type")
 
 collectTableNames ::
      forall db. (B.Database BP.Postgres db)
@@ -520,7 +544,8 @@ renameSchemaCheckedDatabaseSetting schema checkedDB =
         checkedDB
 
 -- Functions to define indexes for a table
-defaultIndex :: T.Text -> [BT.IndexColumn] -> BT.TableIndex
+-- This function takes table name (to auto derive index name) and columns using IndexColumn GADT and returns TableIndex type used by beam
+defaultIndex :: T.Text -> [IndexColumn] -> BT.TableIndex
 defaultIndex tblName columns =
   BT.TableIndex
     (mkIndexName tblName columns)
@@ -528,7 +553,9 @@ defaultIndex tblName columns =
     (getFieldName <$> columns)
     Nothing
 
-uniqueIndex :: T.Text -> [BT.IndexColumn] -> BT.TableIndex
+-- Functions to define unique indexes for a table
+-- This function takes table name (to auto derive index name) and columns using IndexColumn GADT and returns TableIndex type used by beam
+uniqueIndex :: T.Text -> [IndexColumn] -> BT.TableIndex
 uniqueIndex tblName columns =
   BT.TableIndex
     (mkIndexName tblName columns)
@@ -536,11 +563,16 @@ uniqueIndex tblName columns =
     (getFieldName <$> columns)
     Nothing
 
+-- Functions to define indexes for a table with a predicate/where clause
+-- This function takes index name (It doesn't auto derive as same column may be used for other indexes)
+-- a TableSettings which is used for where clause generation and
+-- columns using IndexColumn GADT and returns TableIndex type used by beam
+-- a function which return QGenExpr for defining where clause
 defaultIndexWithPred ::
      BT.Beamable table
   => T.Text
   -> BT.TableSettings table
-  -> [BT.IndexColumn]
+  -> [IndexColumn]
   -> (table (B.QGenExpr context BP.Postgres s) -> B.QGenExpr
                                                     context
                                                     BP.Postgres
@@ -552,11 +584,16 @@ defaultIndexWithPred indexName tbl columns predicate =
     $ Just
     $ mkIndexPredicate tbl predicate
 
+-- Functions to define unique indexes for a table with a predicate/where clause
+-- This function takes index name (It doesn't auto derive as same column may be used for other indexes)
+-- a TableSettings which is used for where clause generation and
+-- columns using IndexColumn GADT and returns TableIndex type used by beam
+-- a function which return QGenExpr for defining where clause
 uniqueIndexWithPred ::
      BT.Beamable table
   => T.Text
   -> BT.TableSettings table
-  -> [BT.IndexColumn]
+  -> [IndexColumn]
   -> (table (B.QGenExpr context BP.Postgres s) -> B.QGenExpr
                                                     context
                                                     BP.Postgres
@@ -569,9 +606,11 @@ uniqueIndexWithPred indexName tbl columns predicate =
     $ mkIndexPredicate tbl predicate
 
 -- Helper functions for index definition
-getFieldName :: BT.IndexColumn -> T.Text
-getFieldName (BT.IC b) = b ^. B.fieldName
+getFieldName :: IndexColumn -> T.Text
+getFieldName (IC b) = b ^. B.fieldName
 
+-- This function takes a TableSettings converts it to table (QGenExpr c be s)
+-- and takes a function which defines index predicate and renders it in SQL
 mkIndexPredicate ::
      BT.Beamable table
   => table (BT.TableField table)
@@ -589,7 +628,8 @@ mkIndexPredicate tblFields predicateFn =
         $ BP.fromPgExpression
         $ exprFn mempty
 
-mkIndexName :: T.Text -> [BT.IndexColumn] -> T.Text
+-- Helper function to auto derive index name using Table name and columns in index
+mkIndexName :: T.Text -> [IndexColumn] -> T.Text
 mkIndexName tblName columns =
   tblName <> "_" <> T.intercalate "_" (map getFieldName columns) <> "_idx"
 

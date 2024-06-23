@@ -6,11 +6,10 @@ packages:
 
 extra-deps:
   - github: mycodedstuff/beam
-    commit: 26eebb4ad6178222848f67441d416df261f012d8
+    commit: f08e132b549991ba155bd2d8d9cf336f9ddc6882
     subdirs:
       - beam-core
       - beam-migrate
       - beam-postgres
       - beam-sqlite
-  - github: AndrasKovacs/flatparse
-    commit: 7ec336cd75bc2e66b089d27a87a5490c08ce9446
+  - flatparse-0.5.1.0@sha256:6f5bc2d750061eac198dae1ca700d8c5c9d69dc8a536d53fdccd21a115ccb9aa,4537

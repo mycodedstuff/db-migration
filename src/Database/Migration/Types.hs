@@ -42,6 +42,10 @@ defaultPartitionOption = PartitionOption True HM.empty
 defaultOptions :: Options
 defaultOptions = Options Nothing Nothing defaultPartitionOption False
 
+-- | A type used to wrap columns for defining indexes
+data IndexColumn where
+  IC :: forall tbl a. BT.TableField tbl a -> IndexColumn
+
 type PredicateInfo a = Map.Map T.Text a
 
 data CharTypeInfo = CharTypeInfo

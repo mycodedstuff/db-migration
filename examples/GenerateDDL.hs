@@ -12,6 +12,7 @@ import GHC.Generics (Generic)
 
 import Schema.Configuration
 import Schema.Issue
+import qualified Database.Migration.Utils.Beam as UB
 
 data TestDB f = TestDB
   { configuration :: !(f (B.TableEntity ConfigurationT))
@@ -42,6 +43,8 @@ main = do
           }
   putStrLn "Connected to postgres"
   let schema = Just "migration"
+  putStrLn "\nTable names ==>"
+  print (UB.collectTableNames $ testDB schema)
   let options = DBM.defaultOptions {schemaName = schema}
   putStrLn "\nSchema dump ==>"
   sqlQueries <- DBM.createSchema options (testDB schema)

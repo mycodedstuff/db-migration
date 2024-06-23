@@ -48,6 +48,7 @@ library
       AllowAmbiguousTypes
       GeneralizedNewtypeDeriving
       ViewPatterns
+      GADTs
   ghc-options: -Wall -O2
   build-depends:
       aeson
@@ -57,6 +58,7 @@ library
     , beam-postgres
     , bytestring
     , containers
+    , free
     , generic-deriving
     , ghc-prim
     , hashable
@@ -97,6 +99,7 @@ executable generate-dll
       AllowAmbiguousTypes
       GeneralizedNewtypeDeriving
       ViewPatterns
+      GADTs
   ghc-options: -Wall -O2 -main-is GenerateDDL
   build-depends:
       aeson

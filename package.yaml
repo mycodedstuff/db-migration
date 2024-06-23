@@ -22,6 +22,7 @@ default-extensions:
   - AllowAmbiguousTypes
   - GeneralizedNewtypeDeriving
   - ViewPatterns
+  - GADTs
 
 ghc-options:
   - -Wall
@@ -48,6 +49,7 @@ library:
     - mtl
     - microlens
     - generic-deriving
+    - free
 
 executables:
   generate-dll:

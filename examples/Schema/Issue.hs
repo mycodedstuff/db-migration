@@ -10,10 +10,10 @@ import qualified Database.Beam.Migrate as BM
 import qualified Database.Beam.Postgres as BP
 import qualified Database.Beam.Postgres.CustomTypes as BP
 import qualified Database.Beam.Postgres.Syntax as BP
-import qualified Database.Beam.Schema.Tables as BT
 import qualified Database.PostgreSQL.Simple.FromField as PS
 import GHC.Generics (Generic)
 
+import Database.Migration.Types
 import Database.Migration.Utils.Beam
 
 data IssueT f = Issue
@@ -66,11 +66,11 @@ instance B.Table IssueT where
     deriving (Generic, B.Beamable)
   primaryKey = IssuePrimaryKey . _id
   tableIndexes tblName tblFields@Issue {..} =
-    [ uniqueIndex tblName [BT.IC _ticketNo]
+    [ uniqueIndex tblName [IC _ticketNo]
     , defaultIndexWithPred
         (tblName <> "_ticketNo_customIdx")
         tblFields
-        [BT.IC _ticketNo] $ \Issue {..} ->
+        [IC _ticketNo] $ \Issue {..} ->
         _status
           B.==. B.val_ RAISED
           B.&&. _message

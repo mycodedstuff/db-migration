@@ -1,4 +1,4 @@
-<h1 style="display:flex"> <image src="https://skillicons.dev/icons?i=haskell" width=36 style="margin-right:10px"> db-migration</h1>
+<h1 style="display:flex"> <image src="https://skillicons.dev/icons?i=haskell" width=34 style="margin-right:10px"> db-migration</h1>
 
 ![Version](https://img.shields.io/badge/version-v0.0.1-blue)
 [![Haskell CI](https://github.com/mycodedstuff/db-migration/actions/workflows/haskell.yml/badge.svg)](https://github.com/mycodedstuff/db-migration/actions/workflows/haskell.yml)
@@ -27,10 +27,21 @@ Example output:
 ❯ stack run
 Initiating connect
 Connected to postgres
+
+Table names ==>
+["Configurations","Issues"]
+
+Schema dump ==>
 create schema if not exists migration;
+create type migration."enum_Issues_status" as enum ('RAISED', 'ACTIVE', 'RESOLVED');
 create sequence if not exists migration."Configurations_id_seq" as bigint increment by 1 minvalue 1 maxvalue 9223372036854775807 start with 1;
-create table if not exists migration."Configurations" (id bigint not null primary key default nextval('migration."Configurations_id_seq"'::regclass), key varchar not null, value varchar not null, "createdAt" timestamp with time zone not null, "updatedAt" timestamp with time zone not null);
-create table if not exists migration."Issues" (id varchar not null primary key, message varchar not null, status "enum_Issues_status" not null, image bytea, store json, "createdAt" timestamp with time zone not null, "updatedAt" timestamp with time zone not null);
+create table if not exists migration."Configurations" ("id" bigint not null primary key default nextval('migration."Configurations_id_seq"'::regclass), "key" varchar not null, "value" varchar not null, "createdAt" timestamp with time zone not null, "updatedAt" timestamp with time zone not null);
+create table if not exists migration."Issues" ("id" varchar not null primary key, "ticketNo" bigint not null, "message" varchar not null, "status" migration."enum_Issues_status" not null, "image" bytea, "store" json, "createdAt" timestamp with time zone not null, "updatedAt" timestamp with time zone not null);
+create index concurrently if not exists "Issues_ticketNo_customIdx" on migration."Issues" ("ticketNo") where "status" = 'RAISED' AND "message" = 'dummy' OR "store" IS NULL;
+create unique index concurrently if not exists "Issues_ticketNo_idx" on migration."Issues" ("ticketNo");
+
+Schema diff ==>
+Schema in sync
 ```
 
 #### Additional Features
@@ -86,6 +97,38 @@ Sample Usage
 ```haskell
 schemaDiff conn dbSettings $ defaultOptions {ignoreEnumOrder = True}
 ```
+
+##### 4. Index Verification
+
+Indexes can be verified by defining the Table instance's tableIndexes method.
+This library allows you to define normal, unique and partial indexes via helper function which also helps in type safety.
+
+The below examples defines two indexes for Table Issues both being on `ticketNo` column
+```haskell
+instance B.Table IssueT where
+  data PrimaryKey IssueT f =
+    IssuePrimaryKey (B.C f Text)
+    deriving (Generic, B.Beamable)
+  primaryKey = IssuePrimaryKey . _id
+  tableIndexes tblName tblFields@Issue {..} =
+    [
+    -- create unique index concurrently if not exists "Issues_ticketNo_idx" on migration."Issues" ("ticketNo");
+      uniqueIndex tblName [IC _ticketNo]
+    -- create index concurrently if not exists "Issues_ticketNo_customIdx" on migration."Issues" ("ticketNo")
+    -- where "status" = 'RAISED' AND "message" = 'dummy' OR "store" IS NULL;
+    , defaultIndexWithPred
+        (tblName <> "_ticketNo_customIdx")
+        tblFields
+        [IC _ticketNo] $ \Issue {..} ->
+        _status
+          B.==. B.val_ RAISED
+          B.&&. _message
+          B.==. B.val_ "dummy"
+          B.||. B.isNothing_ _store
+    ]
+```
+There are few helper functions to define indexes safely `uniqueIndex`, `defaultIndex`, `uniqueIndexWithPred`, `defaultIndexWithPred`.
+> Note: This feature only works with the fork of [beam](https://github.com/mycodedstuff/beam)
 
 #### Haskell and Postgres type mapping with db-migration
 | Haskell | Postgres | db-migration (ColumnType) |

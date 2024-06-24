@@ -158,14 +158,14 @@ The option `ignoreIndexName` can be set if you don't want to validate index name
 
 #### Explore
 
-1. Define, identify and sync indexes
-2. Report columns defined in database not in Haskell schema
-3. DROP DDL statements
+1. Report columns defined in database not in Haskell schema
+2. DROP DDL statements
 
 #### Caveats
 
 1. If an enum isn't named differently in database then instead of renaming the enum, this library will create a new enum and alter the columns type.
 2. If a sequence isn't named correctly in database then library will create a new sequence and this new sequence won't have last_val/currval of the existing sequence
+3. Some features like, index validation and schema specific enums only works with forked [beam](https://github.com/mycodedstuff/beam)
 
 #### Notes
 

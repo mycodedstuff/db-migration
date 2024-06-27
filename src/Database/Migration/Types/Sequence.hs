@@ -30,16 +30,12 @@ instance (Typeable a, Bounded a, Integral a) =>
 
 instance (Integral a, Bounded a, Typeable a) => Pg.FromField (AutoIncrement a) where
   fromField field mValue =
-    let rep = (typeRep $ Proxy @a, Pg.typeOid field)
-     in if rep
-             `notElem` [ (typeRep (Proxy :: Proxy Int32), Pg.typoid Pg.int4)
-                       , (typeRep (Proxy :: Proxy Int64), Pg.typoid Pg.int8)
-                       , (typeRep (Proxy :: Proxy Int16), Pg.typoid Pg.int2)
-                       ]
-          then Pg.returnError Pg.Incompatible field ""
-          else case mValue of
-                 Just d -> return $ AutoIncrement $ fromInteger $ bsToInteger d
-                 Nothing -> Pg.returnError Pg.UnexpectedNull field ""
+    if Pg.typeOid field
+         `notElem` [Pg.typoid Pg.int4, Pg.typoid Pg.int8, Pg.typoid Pg.int2]
+      then Pg.returnError Pg.Incompatible field ""
+      else case mValue of
+             Just d -> return $ AutoIncrement $ fromInteger $ bsToInteger d
+             Nothing -> Pg.returnError Pg.UnexpectedNull field ""
 
 instance B.HasSqlEqualityCheck BP.Postgres (AutoIncrement a)
 

@@ -16,11 +16,6 @@ import Database.Migration.Utils.Common (fromResult, headMaybe)
 getPgConstraintForSchema ::
      BP.Connection -> Maybe T.Text -> IO [BM.SomeDatabasePredicate]
 getPgConstraintForSchema conn mSchema = do
-  mDatabaseName <- getCurrentDatabase conn
-  let databaseName =
-        case mDatabaseName of
-          Just dbName -> dbName
-          Nothing -> error "Couldn't find database name"
   searchPaths <- getSearchPath conn
   {- Hack to get consistent results from postgres
    - Postgres has a tendency to remove schema information if the schema is the first element of search path
@@ -36,8 +31,7 @@ getPgConstraintForSchema conn mSchema = do
       conn
   counterPredicates <- sequenceChecks <$> getSequencesFromPg conn mSchema
   schemaPredicates <-
-    fmap (BM.SomeDatabasePredicate . PgHasSchema)
-      <$> getSchemasFromPg conn databaseName
+    fmap (BM.SomeDatabasePredicate . PgHasSchema) <$> getSchemasFromPg conn
   columnDefaultPredicates <-
     columnDefaultChecks <$> getColumnDefaultsFromPg conn mSchema
   setSearchPath conn searchPaths

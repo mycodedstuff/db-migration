@@ -10,11 +10,6 @@ import Data.Maybe (fromMaybe)
 import qualified Data.Vector as V
 import Database.Migration.Utils.Common
 
-getCurrentDatabase :: BP.Connection -> IO (Maybe T.Text)
-getCurrentDatabase conn =
-  headMaybe . fmap Pg.fromOnly
-    <$> Pg.query_ conn (fromString "select current_database();")
-
 getSequencesFromPg ::
      BP.Connection
   -> Maybe T.Text
@@ -29,15 +24,13 @@ getSequencesFromPg conn mSchema =
         , "where sequence_schema = '" ++ maybe "public" T.unpack mSchema ++ "';"
         ]
 
-getSchemasFromPg :: BP.Connection -> T.Text -> IO [T.Text]
-getSchemasFromPg conn databaseName =
+getSchemasFromPg :: BP.Connection -> IO [T.Text]
+getSchemasFromPg conn =
   fmap Pg.fromOnly
     <$> Pg.query_
           conn
           (fromString
-             $ "select schema_name from information_schema.schemata where catalog_name = '"
-                 ++ T.unpack databaseName
-                 ++ "';")
+             "select schema_name from information_schema.schemata where catalog_name = current_database();")
 
 getColumnDefaultsFromPg ::
      BP.Connection -> Maybe T.Text -> IO [(T.Text, T.Text, T.Text, T.Text)]

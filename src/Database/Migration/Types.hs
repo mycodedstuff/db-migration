@@ -30,7 +30,7 @@ data PartitionOption = PartitionOption
   }
 
 data Options = Options
-  { schemaName :: !(Maybe T.Text)
+  { schemaName :: ![T.Text]
   , typeLenient :: !(Maybe ColumnTypeCheck)
   , partitionOptions :: !PartitionOption
   , ignoreEnumOrder :: !Bool
@@ -41,7 +41,7 @@ defaultPartitionOption :: PartitionOption
 defaultPartitionOption = PartitionOption True HM.empty
 
 defaultOptions :: Options
-defaultOptions = Options Nothing Nothing defaultPartitionOption False False
+defaultOptions = Options [] Nothing defaultPartitionOption False False
 
 -- | A type used to wrap columns for defining indexes
 data IndexColumn where

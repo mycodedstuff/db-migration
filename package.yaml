@@ -4,6 +4,7 @@ author: Aman Singh
 
 
 default-extensions:
+  - BangPatterns
   - DerivingStrategies
   - DeriveGeneric
   - DeriveAnyClass
@@ -50,6 +51,8 @@ library:
     - microlens
     - generic-deriving
     - free
+    - extra
+    - unliftio
 
 executables:
   generate-dll:
@@ -67,3 +70,5 @@ executables:
       - beam-postgres
       - postgresql-simple
       - unordered-containers
+      - mtl
+      - extra

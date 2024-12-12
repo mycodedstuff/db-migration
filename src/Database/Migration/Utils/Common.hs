@@ -11,6 +11,9 @@ import Data.Proxy
 import qualified Data.Text as T
 import GHC.Generics
 import Generics.Deriving.ConNames
+import qualified Data.HashMap.Strict as HM
+import qualified Control.Monad.Extra as CME
+import qualified Data.Hashable as Hashable
 
 {-# INLINE quote #-}
 quote :: T.Text -> T.Text
@@ -28,12 +31,18 @@ headMaybe :: [a] -> Maybe a
 headMaybe [] = Nothing
 headMaybe (x:_) = Just x
 
-sortArrUsingRefArr :: Eq a => [a] -> [a] -> [a]
-sortArrUsingRefArr refArr =
+sortArrUsingRefArr :: (Eq a,Hashable.Hashable a) => [a] -> [a] -> [a]
+sortArrUsingRefArr refArr arr = do
+  let arrlen = L.length refArr
+  let maxBoundLimit :: Int = maxBound 
+  let indexMap = HM.fromList $ CME.loop(\(acc,ar,count) -> 
+                                            case ar of
+                                              [] -> Right acc
+                                              x:xs -> Left ((x,count):acc, xs,count+1) )([],refArr,0)
   sortBy
     (\a b ->
-       fromMaybe maxBound (elemIndex a refArr)
-         `compare` fromMaybe maxBound (elemIndex b refArr))
+       fromMaybe maxBoundLimit (HM.lookup a indexMap)
+         `compare` fromMaybe maxBoundLimit (HM.lookup b indexMap)) arr
 
 -- | Decode a big endian Integer from a bytestring
 bsToInteger :: BS.ByteString -> Integer

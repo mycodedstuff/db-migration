@@ -5,11 +5,13 @@ packages:
   - .
 
 extra-deps:
-  - github: mycodedstuff/beam
-    commit: f08e132b549991ba155bd2d8d9cf336f9ddc6882
+  - github: adiR28/beam
+    commit: 0791544548652731bd70c788b0b22c45b396999d
     subdirs:
       - beam-core
       - beam-migrate
       - beam-postgres
       - beam-sqlite
   - flatparse-0.5.1.0@sha256:6f5bc2d750061eac198dae1ca700d8c5c9d69dc8a536d53fdccd21a115ccb9aa,4537
+  - lockfree-queue-0.2.4@sha256:156e7ccc193fc5d8b43f065e9cd31c3171c79ec25863283d546900d92930846d,2963
+  - unicode-data-0.3.1@sha256:ae3a3aca89a32b912ddde7a644c0c04eaf23ee42014c74fe3d6b9aaf36ce7ec9,5481

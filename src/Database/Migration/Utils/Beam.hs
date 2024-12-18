@@ -323,14 +323,16 @@ groupTableHasIndexPredicate ::
      BM.SomeDatabasePredicate
   -> LHM.LinkedHashMap T.Text DBPredicate
   -> LHM.LinkedHashMap T.Text DBPredicate
-groupTableHasIndexPredicate predicate acc =
+groupTableHasIndexPredicate predicate acc = do
   let IndexPredicate {..} = parseIndexPredicate predicate
-   in LHM.insert
+  let BM.QualifiedName sch tbl  = _table
+  let qualifiedIndexedName = BM.QualifiedName sch _name
+  LHM.insert
         _name
         (DBTableHasIndex
            $ TableHasIndexPredicate
                _table
-               _name
+               qualifiedIndexedName
                _constraint
                _columns
                _predicate

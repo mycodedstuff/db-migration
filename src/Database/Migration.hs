@@ -24,9 +24,8 @@ schemaDiff ::
   => BP.Connection
   -> BM.CheckedDatabaseSettings BP.Postgres db
   -> Options
-  -> IO ()
+  -> IO SchemaDiffResult
 schemaDiff conn checkedDBSetting options = do
-  putStrLn $ "task initiation"
   let schemas = schemaName options
   actualPredicates <- getPgConstraintForSchema conn schemas
   let schemaConstraints = (BM.SomeDatabasePredicate . PgHasSchema) <$> schemas
@@ -35,8 +34,7 @@ schemaDiff conn checkedDBSetting options = do
         schemaConstraints
           ++ concat ((collectPartitionChecks (partitionOptions options)) <$> renamedCheckedDB)
   resp <- Async.runConc $ Async.conc $ schemaDiffIteration conn renamedCheckedDB options actualPredicates haskellConstraints
-  putStrLn $ "task completed"
-  return ()
+  return resp
 
 schemaDiffIteration :: 
       B.Database BP.Postgres db 
@@ -45,7 +43,7 @@ schemaDiffIteration ::
     -> Options
     -> [BM.SomeDatabasePredicate]
     -> [BM.SomeDatabasePredicate]
-    -> IO (Either String DBDiff)
+    -> IO SchemaDiffResult
 schemaDiffIteration conn renamedCheckedDB options actualPredicates haskellConstraints = do
   let expected = HS.fromList haskellConstraints
       actual = HS.fromList actualPredicates
@@ -65,19 +63,21 @@ schemaDiffIteration conn renamedCheckedDB options actualPredicates haskellConstr
           []
           dbPredicates
   if null lenientPredicates
-    then return $ Right Sync
-    else do
-      Right . Diff
-        <$> DF.foldlM
-              (\acc p ->
-                 (acc ++) . renderQuery @BP.Postgres
-                   <$> mutatePredicate @BP.Postgres
-                         (Just conn)
-                         groupedDBChecks
-                         p)
-              []
-              lenientPredicates
-  
+    then return $ DB_IN_SYNC
+    else 
+      case listDifference options of
+        False -> return DB_NOT_IN_SYNC
+        True -> 
+          Diffrence
+            <$> DF.foldlM
+                  (\acc p ->
+                    (acc ++) . renderQuery @BP.Postgres
+                      <$> mutatePredicate @BP.Postgres
+                            (Just conn)
+                            groupedDBChecks
+                            p)
+                  []
+                  lenientPredicates
 
 createSchema ::
      B.Database BP.Postgres db

@@ -12,10 +12,14 @@ import GHC.Generics
 import qualified Database.Migration.Predicate as MP
 import qualified Database.Migration.Types.LinkedHashMap as LHM
 
-data DBDiff
-  = Sync
-  | Diff ![T.Text]
-  deriving (Show)
+data SchemaDiffResult =  
+    DB_IN_SYNC 
+  | Diffrence DBDiff 
+  | DB_NOT_IN_SYNC 
+  | Error String
+  deriving (Eq,Show)
+
+type DBDiff = [T.Text]
 
 class RenderPredicate be p where
   renderQuery :: p -> [T.Text]
@@ -35,13 +39,14 @@ data Options = Options
   , partitionOptions :: !PartitionOption
   , ignoreEnumOrder :: !Bool
   , ignoreIndexName :: !Bool
+  , listDifference :: !Bool 
   }
 
 defaultPartitionOption :: PartitionOption
 defaultPartitionOption = PartitionOption True HM.empty
 
 defaultOptions :: Options
-defaultOptions = Options [] Nothing defaultPartitionOption False False
+defaultOptions = Options [] Nothing defaultPartitionOption False False True
 
 -- | A type used to wrap columns for defining indexes
 data IndexColumn where
@@ -292,11 +297,11 @@ instance A.FromJSON IndexPredicate where
 
 data TableHasIndexPredicate = TableHasIndexPredicate
   { tableName :: !BM.QualifiedName
-  , indexName :: !T.Text
+  , indexName :: !BM.QualifiedName
   , indexConstraint :: !(Maybe BT.IndexConstraint)
   , indexColumns :: ![T.Text]
   , indexPredicate :: !(Maybe T.Text)
-  , existingIndex :: !(Maybe T.Text)
+  , existingIndex :: !(Maybe BM.QualifiedName)
   } deriving (Generic, Show, Eq)
 
 -- Attempt to introduce index declaration in db-migration instead of beam

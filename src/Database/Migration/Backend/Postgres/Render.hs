@@ -300,22 +300,24 @@ instance RenderPredicate BP.Postgres TableHasIndexPredicate where
     case findIndexInDBPredicates p dbPreds of
       Just tp -> return $ p {existingIndex = Just $ indexName tp}
       Nothing -> return p
-  renderQuery TableHasIndexPredicate {..} =
+  renderQuery TableHasIndexPredicate {..} = do
+    let BM.QualifiedName _ ind = indexName
     case existingIndex of
-      Just oldIndex ->
+      Just oldIndex -> do
         let BM.QualifiedName mSch _ = tableName
+        let BM.QualifiedName _ oldInd = oldIndex
          in [ "alter index if exists "
                 <> maybe mempty ((<> ".") . quoteIfAnyUpper) mSch
-                <> quote oldIndex
+                <> quote ind
                 <> " rename to "
-                <> quote indexName
+                <> quote ind
                 <> ";"
             ]
       Nothing ->
         [ "create"
             <> maybe mempty ((" " <>) . renderIndexConstraint) indexConstraint
             <> " index concurrently if not exists "
-            <> quote indexName
+            <> quote ind
             <> " on "
             <> mkTableName tableName
             <> " (\""

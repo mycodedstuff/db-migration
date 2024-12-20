@@ -308,7 +308,7 @@ instance RenderPredicate BP.Postgres TableHasIndexPredicate where
         let BM.QualifiedName _ oldInd = oldIndex
          in [ "alter index if exists "
                 <> maybe mempty ((<> ".") . quoteIfAnyUpper) mSch
-                <> quote ind
+                <> quote oldInd
                 <> " rename to "
                 <> quote ind
                 <> ";"

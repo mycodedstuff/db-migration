@@ -63,20 +63,6 @@ packages:
       size: 2341
   original:
     hackage: flatparse-0.5.1.0@sha256:6f5bc2d750061eac198dae1ca700d8c5c9d69dc8a536d53fdccd21a115ccb9aa,4537
-- completed:
-    hackage: lockfree-queue-0.2.4@sha256:156e7ccc193fc5d8b43f065e9cd31c3171c79ec25863283d546900d92930846d,2963
-    pantry-tree:
-      sha256: f2fc3dda931181cb21b2b9410275ed05ff0042d47db9b79edef864bc123f8046
-      size: 534
-  original:
-    hackage: lockfree-queue-0.2.4@sha256:156e7ccc193fc5d8b43f065e9cd31c3171c79ec25863283d546900d92930846d,2963
-- completed:
-    hackage: unicode-data-0.3.1@sha256:ae3a3aca89a32b912ddde7a644c0c04eaf23ee42014c74fe3d6b9aaf36ce7ec9,5481
-    pantry-tree:
-      sha256: 216b361ca6ce22834f54a12318e2f34871192b68c64dc7fbd3cd8998076ca8d5
-      size: 3281
-  original:
-    hackage: unicode-data-0.3.1@sha256:ae3a3aca89a32b912ddde7a644c0c04eaf23ee42014c74fe3d6b9aaf36ce7ec9,5481
 snapshots:
 - completed:
     sha256: 428ec8d5ce932190d3cbe266b9eb3c175cd81e984babf876b64019e2cbe4ea68

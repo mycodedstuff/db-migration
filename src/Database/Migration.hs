@@ -3,7 +3,6 @@ module Database.Migration where
 import qualified Data.Foldable as DF
 import qualified Data.HashSet as HS
 import Data.List (sort)
-import Data.Maybe (fromMaybe)
 import qualified Data.Text as T
 import qualified Database.Beam as B
 import qualified Database.Beam.Migrate.Simple as BM
@@ -33,18 +32,16 @@ schemaDiff conn checkedDBSetting options = do
   let haskellConstraints =
         schemaConstraints
           ++ concat ((collectPartitionChecks (partitionOptions options)) <$> renamedCheckedDB)
-  resp <- Async.runConc $ Async.conc $ schemaDiffIteration conn renamedCheckedDB options actualPredicates haskellConstraints
+  resp <- Async.runConc $ Async.conc $ schemaDiffIteration conn options actualPredicates haskellConstraints
   return resp
 
 schemaDiffIteration :: 
-      B.Database BP.Postgres db 
-    => BP.Connection 
-    -> [BM.CheckedDatabaseSettings BP.Postgres db]
+       BP.Connection 
     -> Options
     -> [BM.SomeDatabasePredicate]
     -> [BM.SomeDatabasePredicate]
     -> IO SchemaDiffResult
-schemaDiffIteration conn renamedCheckedDB options actualPredicates haskellConstraints = do
+schemaDiffIteration conn options actualPredicates haskellConstraints = do
   let expected = HS.fromList haskellConstraints
       actual = HS.fromList actualPredicates
       diff = expected `HS.difference` actual
@@ -68,7 +65,7 @@ schemaDiffIteration conn renamedCheckedDB options actualPredicates haskellConstr
       case listDifference options of
         False -> return DB_NOT_IN_SYNC
         True -> 
-          Diffrence
+          Difference
             <$> DF.foldlM
                   (\acc p ->
                     (acc ++) . renderQuery @BP.Postgres
@@ -86,7 +83,6 @@ createSchema ::
   -> IO [T.Text]
 createSchema options checkedDB = do
   let schema = schemaName options
-      -- schema = fromMaybe "public" mSchema
       renamedCheckedDB = (\sch -> renameSchemaCheckedDatabaseSetting sch checkedDB) <$> schema
       schemaConstraint = (BM.SomeDatabasePredicate . PgHasSchema) <$> schema
       haskellConstraints =

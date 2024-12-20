@@ -11,8 +11,7 @@ import Text.Read (readMaybe)
 import Database.Migration.Backend.Postgres.Queries
 import Database.Migration.Predicate
 import Database.Migration.Utils.Beam (parseColumnDefault, yesNoToBool)
-import Database.Migration.Utils.Common (fromResult, headMaybe)
-import qualified Data.List as DL
+import Database.Migration.Utils.Common (fromResult)
 import qualified Data.Foldable as DF
 
 getPgConstraintForSchema ::

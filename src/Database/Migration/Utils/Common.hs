@@ -4,7 +4,7 @@ import qualified Data.Aeson as A
 import Data.Bits (Bits((.|.), shiftL))
 import qualified Data.ByteString as BS
 import Data.Char (isUpper)
-import Data.List (elemIndex, sortBy)
+import Data.List (sortBy)
 import qualified Data.List as L
 import Data.Maybe (fromMaybe)
 import Data.Proxy
@@ -12,7 +12,6 @@ import qualified Data.Text as T
 import GHC.Generics
 import Generics.Deriving.ConNames
 import qualified Data.HashMap.Strict as HM
-import qualified Control.Monad.Extra as CME
 import qualified Data.Hashable as Hashable
 
 {-# INLINE quote #-}
@@ -35,10 +34,7 @@ sortArrUsingRefArr :: (Eq a,Hashable.Hashable a) => [a] -> [a] -> [a]
 sortArrUsingRefArr refArr arr = do
   let arrlen = L.length refArr
   let maxBoundLimit :: Int = maxBound 
-  let indexMap = HM.fromList $ CME.loop(\(acc,ar,count) -> 
-                                            case ar of
-                                              [] -> Right acc
-                                              x:xs -> Left ((x,count):acc, xs,count+1) )([],refArr,0)
+  let indexMap = HM.fromList $ zip refArr [0..]
   sortBy
     (\a b ->
        fromMaybe maxBoundLimit (HM.lookup a indexMap)

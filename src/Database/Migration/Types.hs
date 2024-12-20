@@ -14,7 +14,7 @@ import qualified Database.Migration.Types.LinkedHashMap as LHM
 
 data SchemaDiffResult =  
     DB_IN_SYNC 
-  | Diffrence DBDiff 
+  | Difference DBDiff 
   | DB_NOT_IN_SYNC 
   | Error String
   deriving (Eq,Show)

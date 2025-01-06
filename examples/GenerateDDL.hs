@@ -50,5 +50,6 @@ main = do
   sqlQueries <- DBM.createSchema options (testDB (Just schema))
   traverse_ (putStrLn . unpack) sqlQueries
   putStrLn "\nSchema diff ==>"
-  !_ <- DBM.schemaDiff conn (testDB (Just schema)) options
+  resp <- DBM.schemaDiff conn (testDB (Just schema)) options
+  print resp
   BP.close conn

@@ -133,8 +133,8 @@ The option `ignoreIndexName` can be set if you don't want to validate index name
 
 ##### 5. Send Database Difference List Options
 
-Option `listDifference` if set to `True` allows to send the list of differences in haskell code and database. Beware this will cause higher memory utilization if number of shards is large
-If this is `False` library will discard the list and send only `DB_NOT_IN_SYNC` message .
+Option `listDifference` if set to `True` allows to send the return the differences in Haskell and database as DDL queries. Beware this will cause higher memory utilization for higher number of schemas or more no of entities.
+If this is `False` library will discard the list and send only `DB_NOT_IN_SYNC` or `DB_IN_SYNC` message for each schema accordingly.
 By default it's set to True.
 
 Sample Usage

@@ -22,7 +22,7 @@ renderSequenceDefault str = "nextval('" <> str <> "'::regclass)"
 newtype (Integral a, Bounded a) =>
         AutoIncrement a =
   AutoIncrement a
-  deriving newtype (Show, Eq, A.ToJSON, A.FromJSON, Ord)
+  deriving newtype (Show, Eq, A.ToJSON, A.FromJSON, Ord, Num)
 
 instance (Typeable a, Bounded a, Integral a) =>
          B.FromBackendRow BP.Postgres (AutoIncrement a)

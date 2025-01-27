@@ -128,12 +128,13 @@ instance B.Table IssueT where
     ]
 ```
 There are few helper functions to define indexes safely `uniqueIndex`, `defaultIndex`, `uniqueIndexWithPred`, `defaultIndexWithPred`.
-The option `ignoreIndexName` can be set if you don't want to validate index names
+The option `ignoreIndexName` can be set if you don't want to validate index names.
+If you've defined a primary key then there isn't a need to define index on it in tableIndexes function as a primary key cannot exist without an index.
 > Note: This feature only works with the fork of [beam](https://github.com/mycodedstuff/beam)
 
 ##### 5. Send Database Difference List Options
 
-Option `listDifference` if set to `True` allows to send the return the differences in Haskell and database as DDL queries. Beware this will cause higher memory utilization for higher number of schemas or more no of entities.
+Option `listDifference` if set to `True` allows to return the differences in Haskell and database as DDL queries. Beware this will cause higher memory utilization for higher number of schemas or more no of entities.
 If this is `False` library will discard the list and send only `DB_NOT_IN_SYNC` or `DB_IN_SYNC` message for each schema accordingly.
 By default it's set to True.
 

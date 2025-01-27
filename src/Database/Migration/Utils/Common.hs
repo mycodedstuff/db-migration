@@ -4,13 +4,15 @@ import qualified Data.Aeson as A
 import Data.Bits (Bits((.|.), shiftL))
 import qualified Data.ByteString as BS
 import Data.Char (isUpper)
-import Data.List (elemIndex, sortBy)
+import Data.List (sortBy)
 import qualified Data.List as L
 import Data.Maybe (fromMaybe)
 import Data.Proxy
 import qualified Data.Text as T
 import GHC.Generics
 import Generics.Deriving.ConNames
+import qualified Data.HashMap.Strict as HM
+import qualified Data.Hashable as Hashable
 
 {-# INLINE quote #-}
 quote :: T.Text -> T.Text
@@ -28,12 +30,15 @@ headMaybe :: [a] -> Maybe a
 headMaybe [] = Nothing
 headMaybe (x:_) = Just x
 
-sortArrUsingRefArr :: Eq a => [a] -> [a] -> [a]
-sortArrUsingRefArr refArr =
+sortArrUsingRefArr :: (Eq a,Hashable.Hashable a) => [a] -> [a] -> [a]
+sortArrUsingRefArr refArr arr = do
+  let arrlen = L.length refArr
+  let maxBoundLimit :: Int = maxBound 
+  let indexMap = HM.fromList $ zip refArr [0..]
   sortBy
     (\a b ->
-       fromMaybe maxBound (elemIndex a refArr)
-         `compare` fromMaybe maxBound (elemIndex b refArr))
+       fromMaybe maxBoundLimit (HM.lookup a indexMap)
+         `compare` fromMaybe maxBoundLimit (HM.lookup b indexMap)) arr
 
 -- | Decode a big endian Integer from a bytestring
 bsToInteger :: BS.ByteString -> Integer

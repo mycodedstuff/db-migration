@@ -42,17 +42,14 @@ main = do
           , connectDatabase = "testdb"
           }
   putStrLn "Connected to postgres"
-  let schema = Just "migration"
+  let schema =  pack "migration"
   putStrLn "\nTable names ==>"
-  print (UB.collectTableNames $ testDB schema)
-  let options = DBM.defaultOptions {schemaName = schema}
+  print (UB.collectTableNames $ testDB (Just schema))
+  let options = DBM.defaultOptions  {schemaName = [schema]}
   putStrLn "\nSchema dump ==>"
-  sqlQueries <- DBM.createSchema options (testDB schema)
+  sqlQueries <- DBM.createSchema options (testDB (Just schema))
   traverse_ (putStrLn . unpack) sqlQueries
   putStrLn "\nSchema diff ==>"
-  diff <- DBM.schemaDiff conn (testDB schema) options
-  case diff of
-    Right DBM.Sync -> putStrLn "Schema in sync"
-    Right (DBM.Diff queries) -> traverse_ (putStrLn . unpack) queries
-    Left err -> putStrLn err
+  resp <- DBM.schemaDiff conn (testDB (Just schema)) options
+  print resp
   BP.close conn

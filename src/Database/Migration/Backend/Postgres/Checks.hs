@@ -11,10 +11,11 @@ import Text.Read (readMaybe)
 import Database.Migration.Backend.Postgres.Queries
 import Database.Migration.Predicate
 import Database.Migration.Utils.Beam (parseColumnDefault, yesNoToBool)
-import Database.Migration.Utils.Common (fromResult, headMaybe)
+import Database.Migration.Utils.Common (fromResult)
+import qualified Data.Foldable as DF
 
 getPgConstraintForSchema ::
-     BP.Connection -> Maybe T.Text -> IO [BM.SomeDatabasePredicate]
+     BP.Connection -> [T.Text] -> IO [BM.SomeDatabasePredicate]
 getPgConstraintForSchema conn mSchema = do
   searchPaths <- getSearchPath conn
   {- Hack to get consistent results from postgres
@@ -24,16 +25,23 @@ getPgConstraintForSchema conn mSchema = do
   setSearchPath conn []
   dbConstraints <-
     BP.getDbConstraintsForSchemas
-      (Just
-         [ T.unpack
-             $ fromMaybe (fromMaybe "public" $ headMaybe searchPaths) mSchema
-         ])
+      (Just $ T.unpack <$> mSchema)
       conn
-  counterPredicates <- sequenceChecks <$> getSequencesFromPg conn mSchema
+  pgSequences <-
+        DF.foldl' (\acc' x -> do
+          acc <- acc'
+          pgseq <- getSequencesFromPg conn x
+          return $ pgseq ++ acc
+           ) (return []) mSchema
+  let counterPredicates = sequenceChecks pgSequences
   schemaPredicates <-
     fmap (BM.SomeDatabasePredicate . PgHasSchema) <$> getSchemasFromPg conn
-  columnDefaultPredicates <-
-    columnDefaultChecks <$> getColumnDefaultsFromPg conn mSchema
+  columnDefaults <- 
+      DF.foldl' (\acc' x ->  do 
+        acc <- acc'
+        colDef <- getColumnDefaultsFromPg conn x
+        return $ colDef ++ acc) (return []) mSchema
+  let columnDefaultPredicates = columnDefaultChecks columnDefaults
   setSearchPath conn searchPaths
   return
     $ schemaPredicates

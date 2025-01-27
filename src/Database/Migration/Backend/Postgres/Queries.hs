@@ -12,7 +12,7 @@ import Database.Migration.Utils.Common
 
 getSequencesFromPg ::
      BP.Connection
-  -> Maybe T.Text
+  -> T.Text
   -> IO [(String, String, String, String, String, String, String, String)]
 getSequencesFromPg conn mSchema =
   Pg.query_ conn
@@ -21,7 +21,7 @@ getSequencesFromPg conn mSchema =
         [ "select sequence_schema, sequence_name, minimum_value,"
         , "maximum_value, start_value, increment, cycle_option, data_type"
         , "from information_schema.sequences"
-        , "where sequence_schema = '" ++ maybe "public" T.unpack mSchema ++ "';"
+        , "where sequence_schema = '" ++ T.unpack mSchema ++ "';"
         ]
 
 getSchemasFromPg :: BP.Connection -> IO [T.Text]
@@ -33,7 +33,7 @@ getSchemasFromPg conn =
              "select schema_name from information_schema.schemata where catalog_name = current_database();")
 
 getColumnDefaultsFromPg ::
-     BP.Connection -> Maybe T.Text -> IO [(T.Text, T.Text, T.Text, T.Text)]
+     BP.Connection -> T.Text -> IO [(T.Text, T.Text, T.Text, T.Text)]
 getColumnDefaultsFromPg conn mSchema =
   Pg.query_ conn
     $ fromString
@@ -41,7 +41,7 @@ getColumnDefaultsFromPg conn mSchema =
         [ "select table_schema, table_name, column_name, column_default"
         , "from information_schema.columns where"
         , "column_default is not null and"
-        , "table_schema = '" ++ maybe "public" T.unpack mSchema ++ "';"
+        , "table_schema = '" ++ T.unpack mSchema ++ "';"
         ]
 
 getSearchPath :: BP.Connection -> IO [T.Text]

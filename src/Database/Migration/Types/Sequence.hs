@@ -1,10 +1,9 @@
 module Database.Migration.Types.Sequence where
 
 import qualified Data.Aeson as A
-import Data.Int (Int16, Int32, Int64)
-import Data.Proxy
+import Data.Int (Int16, Int32)
 import qualified Data.Text as T
-import Data.Typeable (Typeable, typeRep)
+import Data.Typeable (Typeable)
 import qualified Database.Beam as B
 import qualified Database.Beam.Backend as BA
 import qualified Database.Beam.Migrate as BM

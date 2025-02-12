@@ -8,6 +8,7 @@ import qualified Database.Beam as B
 import qualified Database.Beam.Migrate.Simple as BM
 import qualified Database.Beam.Postgres as BP
 
+import qualified Data.List as DL
 import Database.Migration.Backend.Postgres
 import Database.Migration.Predicate (PgHasSchema(PgHasSchema))
 import Database.Migration.Types
@@ -16,7 +17,6 @@ import Database.Migration.Utils.Beam
 import Database.Migration.Utils.Check
 import Database.Migration.Utils.Common
 import qualified UnliftIO.Async as Async
-import qualified Data.List as DL
 
 schemaDiff ::
      B.Database BP.Postgres db
@@ -27,20 +27,24 @@ schemaDiff ::
 schemaDiff conn checkedDBSetting options = do
   let schemas = schemaName options
   actualPredicates <- getPgConstraintForSchema conn schemas
-  let schemaConstraints = (BM.SomeDatabasePredicate . PgHasSchema) <$> schemas
-  let renamedCheckedDB = (\f -> renameSchemaCheckedDatabaseSetting f checkedDBSetting) <$> schemas
+  let schemaConstraints = BM.SomeDatabasePredicate . PgHasSchema <$> schemas
+  let renamedCheckedDB =
+        (`renameSchemaCheckedDatabaseSetting` checkedDBSetting) <$> schemas
   let haskellConstraints =
         schemaConstraints
-          ++ concat ((collectPartitionChecks (partitionOptions options)) <$> renamedCheckedDB)
-  resp <- Async.runConc $ Async.conc $ schemaDiffIteration conn options actualPredicates haskellConstraints
-  return resp
+          ++ concat
+               (collectPartitionChecks (partitionOptions options)
+                  <$> renamedCheckedDB)
+  Async.runConc
+    $ Async.conc
+    $ schemaDiffIteration conn options actualPredicates haskellConstraints
 
-schemaDiffIteration :: 
-       BP.Connection 
-    -> Options
-    -> [BM.SomeDatabasePredicate]
-    -> [BM.SomeDatabasePredicate]
-    -> IO SchemaDiffResult
+schemaDiffIteration ::
+     BP.Connection
+  -> Options
+  -> [BM.SomeDatabasePredicate]
+  -> [BM.SomeDatabasePredicate]
+  -> IO SchemaDiffResult
 schemaDiffIteration conn options actualPredicates haskellConstraints = do
   let expected = HS.fromList haskellConstraints
       actual = HS.fromList actualPredicates
@@ -60,21 +64,19 @@ schemaDiffIteration conn options actualPredicates haskellConstraints = do
           []
           dbPredicates
   if null lenientPredicates
-    then return $ DB_IN_SYNC
-    else 
-      case listDifference options of
-        False -> return DB_NOT_IN_SYNC
-        True -> 
-          Difference
-            <$> DF.foldlM
-                  (\acc p ->
-                    (acc ++) . renderQuery @BP.Postgres
-                      <$> mutatePredicate @BP.Postgres
-                            (Just conn)
-                            groupedDBChecks
-                            p)
-                  []
-                  lenientPredicates
+    then return DB_IN_SYNC
+    else if listDifference options
+           then Difference
+                  <$> DF.foldlM
+                        (\acc p ->
+                           (acc ++) . renderQuery @BP.Postgres
+                             <$> mutatePredicate @BP.Postgres
+                                   (Just conn)
+                                   groupedDBChecks
+                                   p)
+                        []
+                        lenientPredicates
+           else return DB_NOT_IN_SYNC
 
 createSchema ::
      B.Database BP.Postgres db
@@ -83,11 +85,14 @@ createSchema ::
   -> IO [T.Text]
 createSchema options checkedDB = do
   let schema = schemaName options
-      renamedCheckedDB = (\sch -> renameSchemaCheckedDatabaseSetting sch checkedDB) <$> schema
-      schemaConstraint = (BM.SomeDatabasePredicate . PgHasSchema) <$> schema
+      renamedCheckedDB =
+        (`renameSchemaCheckedDatabaseSetting` checkedDB) <$> schema
+      schemaConstraint = BM.SomeDatabasePredicate . PgHasSchema <$> schema
       haskellConstraints =
         schemaConstraint
-          ++  DL.concat ((collectPartitionChecks (partitionOptions options)) <$> renamedCheckedDB)
+          ++ DL.concat
+               (collectPartitionChecks (partitionOptions options)
+                  <$> renamedCheckedDB)
   let dbPredicates = sort $ LHM.elems $ groupPredicates haskellConstraints
   DF.foldlM
     (\acc p ->

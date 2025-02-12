@@ -5,7 +5,6 @@ module Database.Migration.Backend.Postgres.Render where
 import Data.Char (toLower)
 import qualified Data.Containers.ListUtils as LU
 import qualified Data.Foldable as DF
-import Data.Maybe (fromMaybe)
 import Data.Scientific (FPFormat(Fixed), formatScientific)
 import qualified Data.Text as T
 import qualified Database.Beam.Migrate.Types as BM
@@ -79,9 +78,7 @@ mkAlterColumnTypeQuery tableName columnName _type columnTypeInDB =
     <> quote columnName
     <> " type "
     <> columnTypeToSqlType _type
-    <> " "
-    <> fromMaybe "" (mkColumnTypeCasting columnName _type columnTypeInDB)
-    <> ";"
+    <> maybe ";" (\q -> " " <> q <> ";") (mkColumnTypeCasting columnName _type columnTypeInDB)
 
 instance RenderPredicate BP.Postgres ColumnPredicate where
   mutatePredicate _ dbPreds p@ColumnPredicate {columnName, columnTable} = do

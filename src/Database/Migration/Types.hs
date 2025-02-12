@@ -12,12 +12,12 @@ import GHC.Generics
 import qualified Database.Migration.Predicate as MP
 import qualified Database.Migration.Types.LinkedHashMap as LHM
 
-data SchemaDiffResult =  
-    DB_IN_SYNC 
-  | Difference DBDiff 
-  | DB_NOT_IN_SYNC 
+data SchemaDiffResult
+  = DB_IN_SYNC
+  | Difference DBDiff
+  | DB_NOT_IN_SYNC
   | Error String
-  deriving (Eq,Show)
+  deriving (Eq, Show)
 
 type DBDiff = [T.Text]
 
@@ -39,7 +39,7 @@ data Options = Options
   , partitionOptions :: !PartitionOption
   , ignoreEnumOrder :: !Bool
   , ignoreIndexName :: !Bool
-  , listDifference :: !Bool 
+  , listDifference :: !Bool
   }
 
 defaultPartitionOption :: PartitionOption
